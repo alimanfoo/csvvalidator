@@ -226,4 +226,24 @@ def test_record_length_checks():
     assert c1['length'] == 3
     
     
+def test_value_checks_with_missing_values():
+    """
+    Establish expected behaviour for value checks where there are missing values
+    in the records.
+    
+    """
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_value_check('bar', float)
+    
+    data = (
+            ('foo', 'bar'),
+            ('12',) # this is missing value for bar, what happens to value check?
+            )
+    
+    problems = validator.valid(data)
+    assert len(problems) == 0 # missing values are ignored - use record length checks
+    
+    
     
