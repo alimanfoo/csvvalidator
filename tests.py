@@ -44,7 +44,7 @@ def test_value_checks():
     
     assert len(problems) == 7
     
-    # N.B., expect row and col indices start from 1
+    # N.B., expect row and column indices start from 1
     
     problems_row2 = [p for p in problems if p['row'] == 2] 
     assert len(problems_row2) == 0 # should be valid
@@ -52,7 +52,7 @@ def test_value_checks():
     problems_row3 = [p for p in problems if p['row'] == 3]
     assert len(problems_row3) == 1
     p = problems_row3[0] # convenience variable 
-    assert p['col'] == 1 # report column index
+    assert p['column'] == 1 # report column index
     assert p['field'] == 'foo' # report field name
     assert p['code'] == VALUE_CHECK_FAILED # default problem code for value checks
     assert p['message'] == MESSAGES[VALUE_CHECK_FAILED] # default message
@@ -62,7 +62,7 @@ def test_value_checks():
     problems_row4 = [p for p in problems if p['row'] == 4]
     assert len(problems_row4) == 1
     p = problems_row4[0] # convenience variable
-    assert p['col'] == 1
+    assert p['column'] == 1
     assert p['field'] == 'foo'
     assert p['code'] == VALUE_CHECK_FAILED
     assert p['message'] == MESSAGES[VALUE_CHECK_FAILED]
@@ -72,7 +72,7 @@ def test_value_checks():
     problems_row5 = [p for p in problems if p['row'] == 5]
     assert len(problems_row5) == 1
     p = problems_row5[0] # convenience variable
-    assert p['col'] == 2
+    assert p['column'] == 2
     assert p['field'] == 'bar'
     assert p['code'] == VALUE_CHECK_FAILED
     assert p['message'] == MESSAGES[VALUE_CHECK_FAILED]
@@ -82,7 +82,7 @@ def test_value_checks():
     problems_row6 = [p for p in problems if p['row'] == 6]
     assert len(problems_row6) == 1
     p = problems_row6[0] # convenience variable
-    assert p['col'] == 1
+    assert p['column'] == 1
     assert p['field'] == 'foo'
     assert p['code'] == VALUE_CHECK_FAILED
     assert p['message'] == MESSAGES[VALUE_CHECK_FAILED]
@@ -92,7 +92,7 @@ def test_value_checks():
     problems_row7 = [p for p in problems if p['row'] == 7]
     assert len(problems_row7) == 1
     p = problems_row7[0] # convenience variable
-    assert p['col'] == 2
+    assert p['column'] == 2
     assert p['field'] == 'bar'
     assert p['code'] == VALUE_CHECK_FAILED
     assert p['message'] == MESSAGES[VALUE_CHECK_FAILED]
@@ -102,14 +102,14 @@ def test_value_checks():
     problems_row8 = [p for p in problems if p['row'] == 8]
     assert len(problems_row8) == 2 # expect both problems are found
     p0 = problems_row8[0] # convenience variable
-    assert p0['col'] == 1
+    assert p0['column'] == 1
     assert p0['field'] == 'foo'
     assert p0['code'] == VALUE_CHECK_FAILED
     assert p0['message'] == MESSAGES[VALUE_CHECK_FAILED]
     assert p0['value'] == 'abc'
     assert p0['record'] == ('abc', 'def')
     p1 = problems_row8[1] # convenience variable
-    assert p1['col'] == 2
+    assert p1['column'] == 2
     assert p1['field'] == 'bar'
     assert p1['code'] == VALUE_CHECK_FAILED
     assert p1['message'] == MESSAGES[VALUE_CHECK_FAILED]
@@ -243,7 +243,47 @@ def test_value_checks_with_missing_values():
             )
     
     problems = validator.validate(data)
-    assert len(problems) == 0 # missing values are ignored - use record length checks
+    
+    # missing values are ignored - use record length checks to find these
+    assert len(problems) == 0
+    
+    
+def test_value_check_enumeration():
+    """Test value checks with the enumeration() function."""
+    
+    field_names = ('foo', 'bar', 'baz')
+    validator = CSVValidator(field_names)
+    # define an enumeration directly with arguments
+    validator.add_value_check('bar', enumeration('M', 'F')) 
+    # define an enumeration by passing in a list or tuple
+    flavours = ('chocolate', 'vanilla', 'strawberry')
+    validator.add_value_check('baz', enumeration(flavours)) 
+    
+    data = (
+            ('foo', 'bar', 'baz'),
+            ('1', 'M', 'chocolate'),
+            ('2', 'F', 'maple pecan'),
+            ('3', 'X', 'strawberry')
+            )
+    
+    problems = validator.validate(data)
+    assert len(problems) == 2
+    
+    p0 = problems[0]
+    assert p0['code'] == VALUE_CHECK_FAILED
+    assert p0['row'] == 3
+    assert p0['column'] == 3
+    assert p0['field'] == 'baz'
+    assert p0['value'] == 'maple pecan'
+    assert p0['record'] == ('2', 'F', 'maple pecan')
+    
+    p1 = problems[1]
+    assert p1['code'] == VALUE_CHECK_FAILED
+    assert p1['row'] == 4
+    assert p1['column'] == 2
+    assert p1['field'] == 'bar'
+    assert p1['value'] == 'X'
+    assert p1['record'] == ('3', 'X', 'strawberry')
     
     
     
