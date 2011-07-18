@@ -6,7 +6,11 @@ TODO
 
 import logging
 
-from csvvalidator import *
+from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
+    HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
+    search_pattern, number_range_inclusive, number_range_exclusive,\
+    VALUE_PREDICATE_FALSE
+import math
 
 
 # logging setup
@@ -362,4 +366,49 @@ def test_value_check_numeric_ranges():
     assert problems[3]['row'] == 6 and problems[3]['field'] == 'quux'
     
     
+def test_value_predicates():
+    """Test the use of value predicates."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    foo_predicate = lambda v: math.pow(float(v), 2) < 64 
+    validator.add_value_predicate('foo', foo_predicate)
+    bar_predicate = lambda v: math.sqrt(float(v)) > 8
+    validator.add_value_predicate('bar', bar_predicate, 'X3', 'custom message')
+    
+    data = (
+            ('foo', 'bar'),
+            ('4', '81'), # valid
+            ('9', '81'), # foo invalid
+            ('4', '49') # bar invalid
+            )
+    
+    problems = validator.validate(data)
+    assert len(problems) == 2, len(problems)
+        
+    p0 = problems[0]
+    assert p0['code'] == VALUE_PREDICATE_FALSE
+    assert p0['message'] == MESSAGES[VALUE_PREDICATE_FALSE] 
+    assert p0['row'] == 3
+    assert p0['column'] == 1
+    assert p0['field'] == 'foo'
+    assert p0['value'] == '9'
+    assert p0['record'] == ('9', '81')
+    
+    p1 = problems[1]
+    assert p1['code'] == 'X3'
+    assert p1['message'] == 'custom message' 
+    assert p1['row'] == 4
+    assert p1['column'] == 2
+    assert p1['field'] == 'bar'
+    assert p1['value'] == '49'
+    assert p1['record'] == ('4', '49')
+    
+
+# TODO record predicates
+# TODO unique checks
+# TODO assert methods
+# TODO each methods
+# TODO finally assert methods
+# TODO what happens if value checks or value predicates or .. raise unexpected exceptions?
     
