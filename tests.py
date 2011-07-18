@@ -134,3 +134,32 @@ def test_header_check():
     assert problems[1]['record'] == ('foo', 'baz')
     assert problems[1]['row'] == 1
     
+    
+def test_ignore_lines():
+    """Test instructions to ignore lines works."""
+
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_header_check() 
+    validator.add_value_check('foo', int)
+    validator.add_value_check('bar', float)
+
+    data = (
+            ('ignore', 'me', 'please'),
+            ('ignore', 'me', 'too', 'please'),
+            ('foo', 'baz'),
+            ('1.2', 'abc')
+            )
+    
+    problems = validator.validate(data, ignore_lines=2)
+    
+    assert len(problems) == 3
+    header_problems = [p for p in problems if p['code'] == HEADER_CHECK_FAILED]
+    assert len(header_problems) == 1
+    assert header_problems[0]['row'] == 3
+    value_problems = [p for p in problems if p['code'] == VALUE_CHECK_FAILED]
+    assert len(value_problems) == 2
+    for p in value_problems:
+        assert p['row'] == 4
+    
+    

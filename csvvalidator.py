@@ -47,7 +47,8 @@ class CSVValidator(object):
                  ignore_lines=0,
                  summarize=False,
                  limit=0,
-                 context=None):
+                 context=None,
+                 report_unexpected_errors=False):
         """Validate data from the given data source and return a tuple of problems."""
         
         return tuple(self.ivalidate(data_source, expect_header_row, ignore_lines, summarize, limit, context))
@@ -58,7 +59,8 @@ class CSVValidator(object):
                  ignore_lines=0,
                  summarize=False,
                  limit=0,
-                 context=None):
+                 context=None,
+                 report_unexpected_errors=False):
         """Validate data from the given data source and return a problem generator.
         
         Use this function rather than validate() if you expect a large number
@@ -68,14 +70,16 @@ class CSVValidator(object):
         
         for i, r in enumerate(data_source):
             if expect_header_row and i == ignore_lines:
-                for p in self._apply_header_checks(i, r, summarize):
+                # r is the header row
+                for p in self._apply_header_checks(i, r, summarize, report_unexpected_errors):
                     yield p
             elif i >= ignore_lines:
-                for p in self._apply_value_checks(i, r, summarize):
+                # r is a data row
+                for p in self._apply_value_checks(i, r, summarize, report_unexpected_errors):
                     yield p
                     
                     
-    def _apply_value_checks(self, i, r, summarize):
+    def _apply_value_checks(self, i, r, summarize, report_unexpected_errors):
         for field_name, value_check, code, message, modulus in self._value_checks:
             if i % modulus == 0: # support sampling
                 fi = self._field_names.index(field_name)
@@ -93,7 +97,7 @@ class CSVValidator(object):
                     yield p
                     
                     
-    def _apply_header_checks(self, i, r, summarize):
+    def _apply_header_checks(self, i, r, summarize, report_unexpected_errors):
         for code, message in self._header_checks:
             if tuple(r) != self._field_names:
                 p = {'code': code, 'message': message}
