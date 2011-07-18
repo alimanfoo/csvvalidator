@@ -28,12 +28,7 @@ def test_value_checks():
             )
     
     # run the validator on the test data
-    problems = validator.validate(data, 
-                                  expect_header_row=True, 
-                                  ignore_lines=0,
-                                  summarize=False,
-                                  limit=0,
-                                  context=None)
+    problems = validator.validate(data)
     
     assert len(problems) == 7
     
@@ -107,5 +102,35 @@ def test_value_checks():
     assert p2['code'] == VALUE_CHECK_FAILED
     assert p2['message'] == MESSAGES[VALUE_CHECK_FAILED]
     assert p2['value'] == 'def'
-    assert p2['record'] == ('abc', 'def')    
+    assert p2['record'] == ('abc', 'def')
+    
+    
+def test_header_check():
+    """Test the header checks work."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_header_check() # use default code and message
+    validator.add_header_check(code='X1', message='custom message') # provide custom code and message
+    
+    data = (
+            ('foo', 'baz'),
+            ('123', '456')
+            )
             
+    problems = validator.validate(data)
+    
+    assert len(problems) == 2
+    assert problems[0]['code'] == HEADER_CHECK_FAILED
+    assert problems[0]['message'] == MESSAGES[HEADER_CHECK_FAILED]
+    assert problems[0]['record'] == ('foo', 'baz')
+    assert problems[0]['missing'] == {'bar'}
+    assert problems[0]['unexpected'] == {'baz'}
+    assert problems[0]['row'] == 1
+    assert problems[1]['code'] == 'X1'
+    assert problems[1]['message'] == 'custom message'
+    assert problems[1]['missing'] == {'bar'}
+    assert problems[1]['unexpected'] == {'baz'}
+    assert problems[1]['record'] == ('foo', 'baz')
+    assert problems[1]['row'] == 1
+    
