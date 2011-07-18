@@ -95,18 +95,19 @@ class CSVValidator(object):
         for field_name, value_check, code, message, modulus in self._value_checks:
             if i % modulus == 0: # support sampling
                 fi = self._field_names.index(field_name)
-                value = r[fi]
-                try:
-                    value_check(value)
-                except ValueError:
-                    p = {'code': code, 'message': message}
-                    if not summarize:
-                        p['row'] = i + 1
-                        p['col'] = fi + 1
-                        p['field'] = field_name
-                        p['value'] = value
-                        p['record'] = tuple(r)
-                    yield p
+                if fi < len(r): # only apply checks if there is a value
+                    value = r[fi]
+                    try:
+                        value_check(value)
+                    except ValueError:
+                        p = {'code': code, 'message': message}
+                        if not summarize:
+                            p['row'] = i + 1
+                            p['col'] = fi + 1
+                            p['field'] = field_name
+                            p['value'] = value
+                            p['record'] = tuple(r)
+                        yield p
                     
                     
     def _apply_header_checks(self, i, r, summarize):

@@ -242,7 +242,7 @@ def test_value_checks_with_missing_values():
             ('12',) # this is missing value for bar, what happens to value check?
             )
     
-    problems = validator.valid(data)
+    problems = validator.validate(data)
     assert len(problems) == 0 # missing values are ignored - use record length checks
     
     
