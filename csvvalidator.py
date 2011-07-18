@@ -5,10 +5,12 @@ TODO
 
 VALUE_CHECK_FAILED = 1
 HEADER_CHECK_FAILED = 2
+RECORD_LENGTH_CHECK_FAILED = 3
 
 MESSAGES = {
             VALUE_CHECK_FAILED: 'Value check failed.',
-            HEADER_CHECK_FAILED: 'Header check failed.'
+            HEADER_CHECK_FAILED: 'Header check failed.',
+            RECORD_LENGTH_CHECK_FAILED: 'Record length check failed.'
             }
 
 
@@ -20,6 +22,7 @@ class CSVValidator(object):
         self._field_names = tuple(field_names)
         self._value_checks = []
         self._header_checks = []
+        self._record_length_checks = []
 
         
     def add_value_check(self, field_name, value_check, 
@@ -42,13 +45,21 @@ class CSVValidator(object):
         self._header_checks.append(t)
         
         
+    def add_record_length_check(self,
+                         code=RECORD_LENGTH_CHECK_FAILED, 
+                         message=MESSAGES[RECORD_LENGTH_CHECK_FAILED]):
+        """Add a record length check."""
+        
+        t = code, message
+        self._record_length_checks.append(t)
+        
+        
     def validate(self, data_source, 
                  expect_header_row=True,
                  ignore_lines=0,
                  summarize=False,
                  limit=0,
-                 context=None,
-                 report_unexpected_errors=False):
+                 context=None):
         """Validate data from the given data source and return a tuple of problems."""
         
         return tuple(self.ivalidate(data_source, expect_header_row, ignore_lines, summarize, limit, context))
@@ -59,8 +70,7 @@ class CSVValidator(object):
                  ignore_lines=0,
                  summarize=False,
                  limit=0,
-                 context=None,
-                 report_unexpected_errors=False):
+                 context=None):
         """Validate data from the given data source and return a problem generator.
         
         Use this function rather than validate() if you expect a large number
@@ -71,15 +81,17 @@ class CSVValidator(object):
         for i, r in enumerate(data_source):
             if expect_header_row and i == ignore_lines:
                 # r is the header row
-                for p in self._apply_header_checks(i, r, summarize, report_unexpected_errors):
+                for p in self._apply_header_checks(i, r, summarize):
                     yield p
             elif i >= ignore_lines:
                 # r is a data row
-                for p in self._apply_value_checks(i, r, summarize, report_unexpected_errors):
+                for p in self._apply_value_checks(i, r, summarize):
+                    yield p
+                for p in self._apply_record_length_checks(i, r, summarize):
                     yield p
                     
                     
-    def _apply_value_checks(self, i, r, summarize, report_unexpected_errors):
+    def _apply_value_checks(self, i, r, summarize):
         for field_name, value_check, code, message, modulus in self._value_checks:
             if i % modulus == 0: # support sampling
                 fi = self._field_names.index(field_name)
@@ -97,7 +109,7 @@ class CSVValidator(object):
                     yield p
                     
                     
-    def _apply_header_checks(self, i, r, summarize, report_unexpected_errors):
+    def _apply_header_checks(self, i, r, summarize):
         for code, message in self._header_checks:
             if tuple(r) != self._field_names:
                 p = {'code': code, 'message': message}
@@ -107,3 +119,15 @@ class CSVValidator(object):
                     p['missing'] = set(self._field_names) - set(r)
                     p['unexpected'] = set(r) - set(self._field_names) 
                 yield p
+                
+                
+    def _apply_record_length_checks(self, i, r, summarize):
+        for code, message in self._record_length_checks:
+            if len(r) != len(self._field_names):
+                p = {'code': code, 'message': message}
+                if not summarize:
+                    p['row'] = i + 1
+                    p['record'] = tuple(r)
+                    p['length'] = len(r)
+                yield p
+                
