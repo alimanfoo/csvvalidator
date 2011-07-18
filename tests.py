@@ -1,5 +1,6 @@
 """
 TODO
+
 """
 
 
@@ -284,6 +285,81 @@ def test_value_check_enumeration():
     assert p1['field'] == 'bar'
     assert p1['value'] == 'X'
     assert p1['record'] == ('3', 'X', 'strawberry')
+    
+    
+def test_value_check_match_pattern():
+    """Test value checks with the match_pattern() function."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_value_check('bar', match_pattern('\d{4}-\d{2}-\d{2}'))
+    
+    data = (
+            ('foo', 'bar'),
+            ('1', '1999-01-01'),
+            ('2', 'abcd-ef-gh'),
+            ('3', 'a1999-01-01'),
+            ('4', '1999-01-01a') # this is valid - pattern attempts to match at beginning of line
+            )
+    
+    problems = validator.validate(data)
+    assert len(problems) == 2, len(problems)
+    for p in problems:
+        assert p['code'] == VALUE_CHECK_FAILED
+
+    assert problems[0]['row'] == 3
+    assert problems[1]['row'] == 4
+    
+    
+def test_value_check_search_pattern():
+    """Test value checks with the search_pattern() function."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_value_check('bar', search_pattern('\d{4}-\d{2}-\d{2}'))
+    
+    data = (
+            ('foo', 'bar'),
+            ('1', '1999-01-01'),
+            ('2', 'abcd-ef-gh'),
+            ('3', 'a1999-01-01'), # this is valid - pattern attempts to match anywhere in line
+            ('4', '1999-01-01a') # this is valid - pattern attempts to match anywhere in line
+            )
+    
+    problems = validator.validate(data)
+    assert len(problems) == 1, len(problems)
+    assert problems[0]['code'] == VALUE_CHECK_FAILED
+    assert problems[0]['row'] == 3
+
+
+def test_value_check_numeric_ranges():
+    """Test value checks with numerical range functions."""
+    
+    field_names = ('foo', 'bar', 'baz', 'quux')
+    validator = CSVValidator(field_names)
+    validator.add_value_check('foo', number_range_inclusive(2, 6, int))
+    validator.add_value_check('bar', number_range_exclusive(2, 6, int))
+    validator.add_value_check('baz', number_range_inclusive(2.0, 6.3, float))    
+    validator.add_value_check('quux', number_range_exclusive(2.0, 6.3, float))    
+    
+    data = (
+            ('foo', 'bar', 'baz', 'quux'),
+            ('2', '3', '2.0', '2.1'), # valid
+            ('1', '3', '2.0', '2.1'), # foo invalid
+            ('2', '2', '2.0', '2.1'), # bar invalid
+            ('2', '3', '1.9', '2.1'), # baz invalid
+            ('2', '3', '2.0', '2.0') # quux invalid
+            )
+    
+    problems = validator.validate(data)
+    assert len(problems) == 4, len(problems)
+    for p in problems:
+        assert p['code'] == VALUE_CHECK_FAILED
+
+    assert problems[0]['row'] == 3 and problems[0]['field'] == 'foo'
+    assert problems[1]['row'] == 4 and problems[1]['field'] == 'bar'
+    assert problems[2]['row'] == 5 and problems[2]['field'] == 'baz'
+    assert problems[3]['row'] == 6 and problems[3]['field'] == 'quux'
     
     
     

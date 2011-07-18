@@ -1,6 +1,10 @@
 """
 TODO
+
 """
+
+
+import re
 
 
 VALUE_CHECK_FAILED = 1
@@ -158,4 +162,36 @@ def enumeration(*args):
             raise ValueError(value)
     return checker        
     
-                
+          
+def match_pattern(regex):
+    prog = re.compile(regex)
+    def checker(v):
+        result = prog.match(v)
+        if result is None: 
+            raise ValueError(v)
+    return checker
+
+
+def search_pattern(regex):
+    prog = re.compile(regex)
+    def checker(v):
+        result = prog.search(v)
+        if result is None: 
+            raise ValueError(v)
+    return checker
+
+
+def number_range_inclusive(min, max, type=float):
+    def checker(v):
+        if type(v) < min or type(v) > max:
+            raise ValueError(v)
+    return checker
+
+
+def number_range_exclusive(min, max, type=float):
+    def checker(v):
+        if type(v) <= min or type(v) >= max:
+            raise ValueError(v)
+    return checker
+
+
