@@ -10,7 +10,8 @@ import math
 from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
-    VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE
+    VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
+    ASSERT_CHECK_FAILED
 import pprint
 
 
@@ -453,11 +454,118 @@ def test_record_predicates():
     p = row4_problems_custom[0]
     assert p['message'] == 'custom message'
     assert p['record'] == ('1', '3')
-    
 
-# TODO record predicates
-# TODO unique checks
-# TODO assert methods
+
+def test_unique_checks():
+    """Test the uniqueness checks."""    
+
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_unique_check('foo')
+    
+    data = (
+            ('foo', 'bar'),
+            ('1', 'A'),
+            ('2', 'B'), 
+            ('1', 'C')
+            )
+    
+    problems = validator.validate(data)
+    n = len(problems)
+    assert n == 1, n
+    
+    p = problems[0]
+    assert p['code'] == UNIQUE_CHECK_FAILED
+    assert p['message'] == MESSAGES[UNIQUE_CHECK_FAILED]
+    assert p['row'] == 4
+    assert p['key'] == 'foo'
+    assert p['value'] == '1'
+    assert p['record'] == ('1', 'C')
+    
+    
+def test_compound_unique_checks():
+    """Test the uniqueness checks on compound keys."""    
+
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_unique_check(('foo', 'bar'), 'X5', 'custom message')
+    
+    data = (
+            ('foo', 'bar'),
+            ('1', 'A'),
+            ('2', 'B'), 
+            ('1', 'B'),
+            ('2', 'A'),
+            ('1', 'A')
+            )
+    
+    problems = validator.validate(data)
+    n = len(problems)
+    assert n == 1, n
+    
+    p = problems[0]
+    assert p['code'] == 'X5'
+    assert p['message'] == 'custom message'
+    assert p['row'] == 6
+    assert p['key'] == ('foo', 'bar')
+    assert p['value'] == ('1', 'A')
+    assert p['record'] == ('1', 'A')
+    
+    
+def test_assert_methods():
+    """Test use of 'assert' methods."""
+    
+    # define a custom validator class 
+    class MyValidator(CSVValidator):
+        
+        def __init__(self, threshold):
+            field_names = ('foo', 'bar')
+            super(MyValidator, self).__init__(field_names)
+            self._threshold = threshold
+            
+        def assert_foo_plus_bar_gt_threshold(self, i, r):
+            assert int(r['foo']) + int(r['bar']) > self._threshold # use default error code and message
+    
+        def assert_foo_times_bar_gt_threshold(self, i, r):
+            assert int(r['foo']) * int(r['bar']) > self._threshold, ('X6', 'custom message')
+    
+    validator = MyValidator(42)
+    
+    data = (
+            ('foo', 'bar'),
+            ('33', '10'), # valid
+            ('7', '8'), # invalid (foo + bar less than threshold)
+            ('3', '4'), # invalid (both) 
+            )
+    
+    problems = validator.validate(data)
+    debug(pprint.pprint(problems))
+    n = len(problems)
+    assert n == 3, n
+    
+    row3_problems = [p for p in problems if p['row'] == 3]
+    assert len(row3_problems) == 1
+    p = row3_problems[0]
+    assert p['code'] == ASSERT_CHECK_FAILED
+    assert p['message'] == MESSAGES[ASSERT_CHECK_FAILED]
+    assert p['record'] == ('7', '8')
+    
+    row4_problems = [p for p in problems if p['row'] == 4]
+    assert len(row4_problems) == 2
+
+    row4_problems_custom = [p for p in row4_problems if p['code'] == 'X6']
+    assert len(row4_problems_custom) == 1
+    p = row4_problems_custom[0]
+    assert p['message'] == 'custom message'
+    assert p['record'] == ('3', '4')
+    
+    row4_problems_default = [p for p in row4_problems if p['code'] == ASSERT_CHECK_FAILED]
+    assert len(row4_problems_default) == 1
+    p = row4_problems_default[0]
+    assert p['message'] == MESSAGES[ASSERT_CHECK_FAILED]
+    assert p['record'] == ('3', '4')
+    
+    
 # TODO each methods
 # TODO finally assert methods
 # TODO what happens if value checks or value predicates or .. raise unexpected exceptions?

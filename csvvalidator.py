@@ -13,6 +13,8 @@ HEADER_CHECK_FAILED = 2
 RECORD_LENGTH_CHECK_FAILED = 3
 VALUE_PREDICATE_FALSE = 4
 RECORD_PREDICATE_FALSE = 5
+UNIQUE_CHECK_FAILED = 6
+ASSERT_CHECK_FAILED = 7
 
 MESSAGES = {
             UNEXPECTED_ERROR: 'Unexpected error.',
@@ -20,7 +22,9 @@ MESSAGES = {
             HEADER_CHECK_FAILED: 'Header check failed.',
             RECORD_LENGTH_CHECK_FAILED: 'Record length check failed.',
             VALUE_PREDICATE_FALSE: 'Value predicate returned false.',
-            RECORD_PREDICATE_FALSE: 'Record predicate returned false.'
+            RECORD_PREDICATE_FALSE: 'Record predicate returned false.',
+            UNIQUE_CHECK_FAILED: 'Unique check failed.',
+            ASSERT_CHECK_FAILED: 'Assertion check failed.'
             }
 
 
@@ -35,6 +39,7 @@ class CSVValidator(object):
         self._record_length_checks = []
         self._value_predicates = []
         self._record_predicates = []
+        self._unique_checks = []
 
         
     def add_value_check(self, field_name, value_check, 
@@ -86,6 +91,20 @@ class CSVValidator(object):
 
         t = record_predicate, code, message, modulus
         self._record_predicates.append(t)
+        
+        
+    def add_unique_check(self, key,
+                        code=UNIQUE_CHECK_FAILED, 
+                        message=MESSAGES[UNIQUE_CHECK_FAILED]):
+        """Add a unique check on a single column or combination of columns."""
+        
+        if isinstance(key, basestring): 
+            assert key in self._field_names, 'unexpected field name: %s' % key
+        else:
+            for f in key:
+                assert f in self._field_names, 'unexpected field name: %s' % key
+        t = key, code, message
+        self._unique_checks.append(t)
     
     
     def validate(self, data_source, 
@@ -112,6 +131,7 @@ class CSVValidator(object):
         
         """
         
+        unique_sets = self._init_unique_sets() # used for unique checks
         for i, r in enumerate(data_source):
             if expect_header_row and i == ignore_lines:
                 # r is the header row
@@ -127,6 +147,18 @@ class CSVValidator(object):
                     yield p
                 for p in self._apply_record_predicates(i, r, summarize):
                     yield p
+                for p in self._apply_unique_checks(i, r, unique_sets, summarize):
+                    yield p
+                for p in self._apply_assert_methods(i, r, summarize):
+                    yield p
+                    
+                    
+    def _init_unique_sets(self):
+        ks = dict()
+        for t in self._unique_checks:
+            key = t[0]
+            ks[key] = set() # empty set
+        return ks
                     
                     
     def _apply_value_checks(self, i, r, summarize):
@@ -205,7 +237,50 @@ class CSVValidator(object):
                         p['record'] = r
                     yield p
                     
-                    
+                
+    def _apply_unique_checks(self, i, r, unique_sets, summarize):
+        for key, code, message in self._unique_checks:
+            value = None
+            values = unique_sets[key]
+            if isinstance(key, basestring): # assume key is a field name
+                fi = self._field_names.index(key)
+                value = r[fi]
+            else: # assume key is a list or tuple, i.e., compound key
+                value = []
+                for f in key:
+                    fi = self._field_names.index(f)
+                    value.append(r[fi])
+                value = tuple(value) # enable hashing
+            if value in values:
+                p = {'code': code}
+                if not summarize:
+                    p['message'] = message
+                    p['row'] = i + 1
+                    p['record'] = r
+                    p['key'] = key
+                    p['value'] = value
+                yield p
+            values.add(value)
+
+
+    def _apply_assert_methods(self, i, r, summarize):
+        for a in dir(self):
+            if a.startswith('assert'):
+                rdict = self._as_dict(r)
+                f = getattr(self, a)
+                try:
+                    f(i, rdict)
+                except AssertionError as e:
+                    code = e.args[0] if len(e.args) > 0 else ASSERT_CHECK_FAILED
+                    p = {'code': code}
+                    if not summarize:
+                        message = e.args[1] if len(e.args) > 1 else MESSAGES[ASSERT_CHECK_FAILED]
+                        p['message'] = message
+                        p['row'] = i + 1
+                        p['record'] = r
+                    yield p
+    
+    
     def _as_dict(self, r):
         """Convert the record to a dictionary using field names as keys."""
         d = dict()
