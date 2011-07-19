@@ -429,7 +429,6 @@ def test_record_predicates():
             )
     
     problems = validator.validate(data)
-    debug(pprint.pprint(problems))
     n = len(problems)
     assert n == 3, n
     
@@ -539,7 +538,6 @@ def test_assert_methods():
             )
     
     problems = validator.validate(data)
-    debug(pprint.pprint(problems))
     n = len(problems)
     assert n == 3, n
     
@@ -565,9 +563,48 @@ def test_assert_methods():
     assert p['message'] == MESSAGES[ASSERT_CHECK_FAILED]
     assert p['record'] == ('3', '4')
     
+
+def test_each_and_finally_assert_methods():
+    """Test 'each' and 'finally_assert' methods."""
     
-# TODO each methods
-# TODO finally assert methods
+    # define a custom validator class 
+    class MyValidator(CSVValidator):
+        
+        def __init__(self, threshold):
+            field_names = ('foo', 'bar')
+            super(MyValidator, self).__init__(field_names)
+            self._threshold = threshold
+            self._bars = []
+            self._count = 0
+            
+        def each_store_bar(self, i, r):
+            n = float(r['bar'])
+            self._bars.append(n)
+            self._count += 1
+            
+        def finally_assert_mean_bar_gt_threshold(self):
+            mean = sum(self._bars) / self._count
+            assert mean > self._threshold, ('X7', 'custom message')
+            
+    data = [
+            ['foo', 'bar'],
+            ['A', '2'],
+            ['B', '3'],
+            ['C', '7']
+            ]
+    
+    validator = MyValidator(5.0)
+    problems = validator.validate(data)
+    assert len(problems) == 1
+    p = problems[0]
+    assert p['code'] == 'X7'
+    assert p['message'] == 'custom message'
+    
+    data.append(['D', '10'])
+    validator = MyValidator(5.0)
+    problems = validator.validate(data)
+    assert len(problems) == 0
+    
 # TODO what happens if value checks or value predicates or .. raise unexpected exceptions?
 # TODO test summarise
 # TODO test limit

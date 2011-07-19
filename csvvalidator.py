@@ -15,6 +15,7 @@ VALUE_PREDICATE_FALSE = 4
 RECORD_PREDICATE_FALSE = 5
 UNIQUE_CHECK_FAILED = 6
 ASSERT_CHECK_FAILED = 7
+FINALLY_ASSERT_CHECK_FAILED = 7
 
 MESSAGES = {
             UNEXPECTED_ERROR: 'Unexpected error.',
@@ -24,7 +25,8 @@ MESSAGES = {
             VALUE_PREDICATE_FALSE: 'Value predicate returned false.',
             RECORD_PREDICATE_FALSE: 'Record predicate returned false.',
             UNIQUE_CHECK_FAILED: 'Unique check failed.',
-            ASSERT_CHECK_FAILED: 'Assertion check failed.'
+            ASSERT_CHECK_FAILED: 'Assertion check failed.',
+            FINALLY_ASSERT_CHECK_FAILED: 'Final assertion check failed.'
             }
 
 
@@ -139,6 +141,7 @@ class CSVValidator(object):
                     yield p
             elif i >= ignore_lines:
                 # r is a data row
+                self._apply_each_methods(i, r)
                 for p in self._apply_value_checks(i, r, summarize):
                     yield p
                 for p in self._apply_record_length_checks(i, r, summarize):
@@ -151,6 +154,8 @@ class CSVValidator(object):
                     yield p
                 for p in self._apply_assert_methods(i, r, summarize):
                     yield p
+        for p in self._apply_finally_assert_methods(summarize):
+            yield p
                     
                     
     def _init_unique_sets(self):
@@ -263,6 +268,14 @@ class CSVValidator(object):
             values.add(value)
 
 
+    def _apply_each_methods(self, i, r):
+        for a in dir(self):
+            if a.startswith('each'):
+                rdict = self._as_dict(r)
+                f = getattr(self, a)
+                f(i, rdict)
+        
+                    
     def _apply_assert_methods(self, i, r, summarize):
         for a in dir(self):
             if a.startswith('assert'):
@@ -278,6 +291,21 @@ class CSVValidator(object):
                         p['message'] = message
                         p['row'] = i + 1
                         p['record'] = r
+                    yield p
+    
+    
+    def _apply_finally_assert_methods(self, summarize):
+        for a in dir(self):
+            if a.startswith('finally_assert'):
+                f = getattr(self, a)
+                try:
+                    f()
+                except AssertionError as e:
+                    code = e.args[0] if len(e.args) > 0 else FINALLY_ASSERT_CHECK_FAILED
+                    p = {'code': code}
+                    if not summarize:
+                        message = e.args[1] if len(e.args) > 1 else MESSAGES[FINALLY_ASSERT_CHECK_FAILED]
+                        p['message'] = message
                     yield p
     
     
