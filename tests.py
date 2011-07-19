@@ -11,7 +11,7 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
-    ASSERT_CHECK_FAILED
+    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION
 import pprint
 
 
@@ -604,6 +604,39 @@ def test_each_and_finally_assert_methods():
     validator = MyValidator(5.0)
     problems = validator.validate(data)
     assert len(problems) == 0
+
+
+def test_exception_handling():
+    """Establish expectations for exception handling."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    
+    validator.add_value_check('foo', int)
+    def buggy_value_check(v):
+        raise Exception('something went wrong')
+    validator.add_value_check('bar', buggy_value_check)
+    
+    data = (
+            ('foo', 'bar'),
+            ('12', '34'),
+            ('ab', '56')
+            )
+    
+    problems = validator.validate(data, report_unexpected_exceptions=False)
+    n = len(problems)
+    assert n == 1, n
+    p = problems[0]
+    assert p['row'] == 3
+
+    problems = validator.validate(data) # by default, exceptions are reported as problems
+    info(problems)
+    n = len(problems)
+    assert n == 3, n
+    
+    unexpected_problems = [p for p in problems if p['code'] == UNEXPECTED_EXCEPTION]
+    assert len(unexpected_problems) == 2
+    
     
 # TODO what happens if value checks or value predicates or .. raise unexpected exceptions?
 # TODO test summarise

@@ -7,7 +7,7 @@ TODO
 import re
 
 
-UNEXPECTED_ERROR = 0
+UNEXPECTED_EXCEPTION = 0
 VALUE_CHECK_FAILED = 1
 HEADER_CHECK_FAILED = 2
 RECORD_LENGTH_CHECK_FAILED = 3
@@ -18,7 +18,7 @@ ASSERT_CHECK_FAILED = 7
 FINALLY_ASSERT_CHECK_FAILED = 7
 
 MESSAGES = {
-            UNEXPECTED_ERROR: 'Unexpected error.',
+            UNEXPECTED_EXCEPTION: 'Unexpected exception [%s]: %s',
             VALUE_CHECK_FAILED: 'Value check failed.',
             HEADER_CHECK_FAILED: 'Header check failed.',
             RECORD_LENGTH_CHECK_FAILED: 'Record length check failed.',
@@ -114,10 +114,11 @@ class CSVValidator(object):
                  ignore_lines=0,
                  summarize=False,
                  limit=0,
-                 context=None):
+                 context=None,
+                 report_unexpected_exceptions=True):
         """Validate data from the given data source and return a list of problems."""
         
-        return list(self.ivalidate(data_source, expect_header_row, ignore_lines, summarize, limit, context))
+        return list(self.ivalidate(data_source, expect_header_row, ignore_lines, summarize, limit, context, report_unexpected_exceptions))
     
     
     def ivalidate(self, data_source, 
@@ -125,7 +126,8 @@ class CSVValidator(object):
                  ignore_lines=0,
                  summarize=False,
                  limit=0,
-                 context=None):
+                 context=None,
+                 report_unexpected_exceptions=True):
         """Validate data from the given data source and return a problem generator.
         
         Use this function rather than validate() if you expect a large number
@@ -141,20 +143,21 @@ class CSVValidator(object):
                     yield p
             elif i >= ignore_lines:
                 # r is a data row
-                self._apply_each_methods(i, r)
-                for p in self._apply_value_checks(i, r, summarize):
+                for p in self._apply_each_methods(i, r, summarize, report_unexpected_exceptions):
+                    yield p
+                for p in self._apply_value_checks(i, r, summarize, report_unexpected_exceptions):
                     yield p
                 for p in self._apply_record_length_checks(i, r, summarize):
                     yield p
-                for p in self._apply_value_predicates(i, r, summarize):
+                for p in self._apply_value_predicates(i, r, summarize, report_unexpected_exceptions):
                     yield p
-                for p in self._apply_record_predicates(i, r, summarize):
+                for p in self._apply_record_predicates(i, r, summarize, report_unexpected_exceptions):
                     yield p
                 for p in self._apply_unique_checks(i, r, unique_sets, summarize):
                     yield p
-                for p in self._apply_assert_methods(i, r, summarize):
+                for p in self._apply_assert_methods(i, r, summarize, report_unexpected_exceptions):
                     yield p
-        for p in self._apply_finally_assert_methods(summarize):
+        for p in self._apply_finally_assert_methods(summarize, report_unexpected_exceptions):
             yield p
                     
                     
@@ -166,7 +169,11 @@ class CSVValidator(object):
         return ks
                     
                     
-    def _apply_value_checks(self, i, r, summarize):
+    def _apply_value_checks(self, i, r, 
+                            summarize=False, 
+                            report_unexpected_exceptions=True):
+        """Apply value check functions on the given record."""
+        
         for field_name, value_check, code, message, modulus in self._value_checks:
             if i % modulus == 0: # support sampling
                 fi = self._field_names.index(field_name)
@@ -184,9 +191,21 @@ class CSVValidator(object):
                             p['value'] = value
                             p['record'] = r
                         yield p
+                    except Exception as e:
+                        if report_unexpected_exceptions:
+                            p = {'code': UNEXPECTED_EXCEPTION}
+                            if not summarize:
+                                p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                                p['row'] = i + 1
+                                p['column'] = fi + 1
+                                p['field'] = field_name
+                                p['value'] = value
+                                p['record'] = r
+                                p['exception'] = e
+                            yield p
+                        
                     
-                    
-    def _apply_header_checks(self, i, r, summarize):
+    def _apply_header_checks(self, i, r, summarize=False):
         for code, message in self._header_checks:
             if tuple(r) != self._field_names:
                 p = {'code': code}
@@ -199,7 +218,7 @@ class CSVValidator(object):
                 yield p
                 
                 
-    def _apply_record_length_checks(self, i, r, summarize):
+    def _apply_record_length_checks(self, i, r, summarize=False):
         for code, message, modulus in self._record_length_checks:
             if i % modulus == 0: # support sampling
                 if len(r) != len(self._field_names):
@@ -212,38 +231,68 @@ class CSVValidator(object):
                     yield p
                 
                 
-    def _apply_value_predicates(self, i, r, summarize):
+    def _apply_value_predicates(self, i, r, 
+                                summarize=False, 
+                                report_unexpected_exceptions=True):
         for field_name, value_predicate, code, message, modulus in self._value_predicates:
             if i % modulus == 0: # support sampling
                 fi = self._field_names.index(field_name)
                 if fi < len(r): # only apply predicate if there is a value
                     value = r[fi]
-                    if not value_predicate(value):
+                    try:
+                        valid = value_predicate(value)
+                        if not valid:
+                            p = {'code': code}
+                            if not summarize:
+                                p['message'] = message
+                                p['row'] = i + 1
+                                p['column'] = fi + 1
+                                p['field'] = field_name
+                                p['value'] = value
+                                p['record'] = r
+                            yield p
+                    except Exception as e:
+                        if report_unexpected_exceptions:
+                            p = {'code': UNEXPECTED_EXCEPTION}
+                            if not summarize:
+                                p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                                p['row'] = i + 1
+                                p['column'] = fi + 1
+                                p['field'] = field_name
+                                p['value'] = value
+                                p['record'] = r
+                                p['exception'] = e
+                            yield p
+
+
+    def _apply_record_predicates(self, i, r, 
+                                 summarize=False, 
+                                 report_unexpected_exceptions=True):
+        for record_predicate, code, message, modulus in self._record_predicates:
+            if i % modulus == 0: # support sampling
+                rdict = self._as_dict(r)
+                try:
+                    valid = record_predicate(rdict)
+                    if not valid:
                         p = {'code': code}
                         if not summarize:
                             p['message'] = message
                             p['row'] = i + 1
-                            p['column'] = fi + 1
-                            p['field'] = field_name
-                            p['value'] = value
                             p['record'] = r
                         yield p
-
-
-    def _apply_record_predicates(self, i, r, summarize):
-        for record_predicate, code, message, modulus in self._record_predicates:
-            if i % modulus == 0: # support sampling
-                rdict = self._as_dict(r)
-                if not record_predicate(rdict):
-                    p = {'code': code}
-                    if not summarize:
-                        p['message'] = message
-                        p['row'] = i + 1
-                        p['record'] = r
-                    yield p
+                except Exception as e:
+                    if report_unexpected_exceptions:
+                        p = {'code': UNEXPECTED_EXCEPTION}
+                        if not summarize:
+                            p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                            p['row'] = i + 1
+                            p['record'] = r
+                            p['exception'] = e
+                        yield p
                     
                 
-    def _apply_unique_checks(self, i, r, unique_sets, summarize):
+    def _apply_unique_checks(self, i, r, unique_sets, 
+                             summarize=False):
         for key, code, message in self._unique_checks:
             value = None
             values = unique_sets[key]
@@ -268,15 +317,29 @@ class CSVValidator(object):
             values.add(value)
 
 
-    def _apply_each_methods(self, i, r):
+    def _apply_each_methods(self, i, r, 
+                            summarize=False, 
+                            report_unexpected_exceptions=True):
         for a in dir(self):
             if a.startswith('each'):
                 rdict = self._as_dict(r)
                 f = getattr(self, a)
-                f(i, rdict)
-        
+                try:
+                    f(i, rdict)
+                except Exception as e:
+                    if report_unexpected_exceptions:
+                        p = {'code': UNEXPECTED_EXCEPTION}
+                        if not summarize:
+                            p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                            p['row'] = i + 1
+                            p['record'] = r
+                            p['exception'] = e
+                        yield p
+
                     
-    def _apply_assert_methods(self, i, r, summarize):
+    def _apply_assert_methods(self, i, r, 
+                              summarize=False, 
+                              report_unexpected_exceptions=True):
         for a in dir(self):
             if a.startswith('assert'):
                 rdict = self._as_dict(r)
@@ -292,9 +355,20 @@ class CSVValidator(object):
                         p['row'] = i + 1
                         p['record'] = r
                     yield p
+                except Exception as e:
+                    if report_unexpected_exceptions:
+                        p = {'code': UNEXPECTED_EXCEPTION}
+                        if not summarize:
+                            p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                            p['row'] = i + 1
+                            p['record'] = r
+                            p['exception'] = e
+                        yield p
     
     
-    def _apply_finally_assert_methods(self, summarize):
+    def _apply_finally_assert_methods(self, 
+                                      summarize=False, 
+                                      report_unexpected_exceptions=True):
         for a in dir(self):
             if a.startswith('finally_assert'):
                 f = getattr(self, a)
@@ -307,6 +381,13 @@ class CSVValidator(object):
                         message = e.args[1] if len(e.args) > 1 else MESSAGES[FINALLY_ASSERT_CHECK_FAILED]
                         p['message'] = message
                     yield p
+                except Exception as e:
+                    if report_unexpected_exceptions:
+                        p = {'code': UNEXPECTED_EXCEPTION}
+                        if not summarize:
+                            p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                            p['exception'] = e
+                        yield p
     
     
     def _as_dict(self, r):
