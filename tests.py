@@ -5,12 +5,13 @@ TODO
 
 
 import logging
+import math
 
 from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
-    VALUE_PREDICATE_FALSE
-import math
+    VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE
+import pprint
 
 
 # logging setup
@@ -404,6 +405,55 @@ def test_value_predicates():
     assert p1['value'] == '49'
     assert p1['record'] == ('4', '49')
     
+    
+def test_record_predicates():
+    """Test the use of record predicates."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    
+    def foo_gt_bar(r):
+        return int(r['foo']) > int(r['bar']) # expect record will be a dictionary
+    validator.add_record_predicate(foo_gt_bar) # use default code and message
+    
+    def foo_gt_2bar(r):
+        return int(r['foo']) > 2 * int(r['bar'])
+    validator.add_record_predicate(foo_gt_2bar, 'X4', 'custom message')
+    
+    data = (
+            ('foo', 'bar'),
+            ('7', '3'), # valid
+            ('5', '3'), # invalid - not foo_gt_2bar
+            ('1', '3') # invalid - both predicates false
+            )
+    
+    problems = validator.validate(data)
+    debug(pprint.pprint(problems))
+    n = len(problems)
+    assert n == 3, n
+    
+    row3_problems = [p for p in problems if p['row'] == 3]
+    assert len(row3_problems) == 1
+    p = row3_problems[0]
+    assert p['code'] == 'X4'
+    assert p['message'] == 'custom message'
+    assert p['record'] == ('5', '3')
+    
+    row4_problems = [p for p in problems if p['row'] == 4]
+    assert len(row4_problems) == 2
+    
+    row4_problems_default = [p for p in row4_problems if p['code'] == RECORD_PREDICATE_FALSE]
+    assert len(row4_problems_default) == 1
+    p = row4_problems_default[0]
+    assert p['message'] == MESSAGES[RECORD_PREDICATE_FALSE]
+    assert p['record'] == ('1', '3')
+    
+    row4_problems_custom = [p for p in row4_problems if p['code'] == 'X4']
+    assert len(row4_problems_custom) == 1
+    p = row4_problems_custom[0]
+    assert p['message'] == 'custom message'
+    assert p['record'] == ('1', '3')
+    
 
 # TODO record predicates
 # TODO unique checks
@@ -411,4 +461,7 @@ def test_value_predicates():
 # TODO each methods
 # TODO finally assert methods
 # TODO what happens if value checks or value predicates or .. raise unexpected exceptions?
-    
+# TODO test summarise
+# TODO test limit
+# TODO test context
+# TODO test writing problems

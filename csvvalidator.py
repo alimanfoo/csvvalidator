@@ -12,13 +12,15 @@ VALUE_CHECK_FAILED = 1
 HEADER_CHECK_FAILED = 2
 RECORD_LENGTH_CHECK_FAILED = 3
 VALUE_PREDICATE_FALSE = 4
+RECORD_PREDICATE_FALSE = 5
 
 MESSAGES = {
             UNEXPECTED_ERROR: 'Unexpected error.',
             VALUE_CHECK_FAILED: 'Value check failed.',
             HEADER_CHECK_FAILED: 'Header check failed.',
             RECORD_LENGTH_CHECK_FAILED: 'Record length check failed.',
-            VALUE_PREDICATE_FALSE: 'Value predicate returned false.'
+            VALUE_PREDICATE_FALSE: 'Value predicate returned false.',
+            RECORD_PREDICATE_FALSE: 'Record predicate returned false.'
             }
 
 
@@ -32,6 +34,7 @@ class CSVValidator(object):
         self._header_checks = []
         self._record_length_checks = []
         self._value_predicates = []
+        self._record_predicates = []
 
         
     def add_value_check(self, field_name, value_check, 
@@ -56,10 +59,11 @@ class CSVValidator(object):
         
     def add_record_length_check(self,
                          code=RECORD_LENGTH_CHECK_FAILED, 
-                         message=MESSAGES[RECORD_LENGTH_CHECK_FAILED]):
+                         message=MESSAGES[RECORD_LENGTH_CHECK_FAILED],
+                         modulus=1):
         """Add a record length check."""
         
-        t = code, message
+        t = code, message, modulus
         self._record_length_checks.append(t)
         
         
@@ -72,6 +76,16 @@ class CSVValidator(object):
         assert field_name in self._field_names, 'unexpected field name: %s' % field_name
         t = field_name, value_predicate, code, message, modulus
         self._value_predicates.append(t)
+    
+    
+    def add_record_predicate(self, record_predicate,
+                        code=RECORD_PREDICATE_FALSE, 
+                        message=MESSAGES[RECORD_PREDICATE_FALSE],
+                        modulus=1):
+        """Add a record predicate function."""
+
+        t = record_predicate, code, message, modulus
+        self._record_predicates.append(t)
     
     
     def validate(self, data_source, 
@@ -111,6 +125,8 @@ class CSVValidator(object):
                     yield p
                 for p in self._apply_value_predicates(i, r, summarize):
                     yield p
+                for p in self._apply_record_predicates(i, r, summarize):
+                    yield p
                     
                     
     def _apply_value_checks(self, i, r, summarize):
@@ -122,21 +138,23 @@ class CSVValidator(object):
                     try:
                         value_check(value)
                     except ValueError:
-                        p = {'code': code, 'message': message}
+                        p = {'code': code}
                         if not summarize:
+                            p['message'] = message
                             p['row'] = i + 1
                             p['column'] = fi + 1
                             p['field'] = field_name
                             p['value'] = value
-                            p['record'] = tuple(r)
+                            p['record'] = r
                         yield p
                     
                     
     def _apply_header_checks(self, i, r, summarize):
         for code, message in self._header_checks:
             if tuple(r) != self._field_names:
-                p = {'code': code, 'message': message}
+                p = {'code': code}
                 if not summarize:
+                    p['message'] = message
                     p['row'] = i + 1
                     p['record'] = tuple(r)
                     p['missing'] = set(self._field_names) - set(r)
@@ -145,14 +163,16 @@ class CSVValidator(object):
                 
                 
     def _apply_record_length_checks(self, i, r, summarize):
-        for code, message in self._record_length_checks:
-            if len(r) != len(self._field_names):
-                p = {'code': code, 'message': message}
-                if not summarize:
-                    p['row'] = i + 1
-                    p['record'] = tuple(r)
-                    p['length'] = len(r)
-                yield p
+        for code, message, modulus in self._record_length_checks:
+            if i % modulus == 0: # support sampling
+                if len(r) != len(self._field_names):
+                    p = {'code': code}
+                    if not summarize:
+                        p['message'] = message
+                        p['row'] = i + 1
+                        p['record'] = r
+                        p['length'] = len(r)
+                    yield p
                 
                 
     def _apply_value_predicates(self, i, r, summarize):
@@ -162,16 +182,38 @@ class CSVValidator(object):
                 if fi < len(r): # only apply predicate if there is a value
                     value = r[fi]
                     if not value_predicate(value):
-                        p = {'code': code, 'message': message}
+                        p = {'code': code}
                         if not summarize:
+                            p['message'] = message
                             p['row'] = i + 1
                             p['column'] = fi + 1
                             p['field'] = field_name
                             p['value'] = value
-                            p['record'] = tuple(r)
+                            p['record'] = r
                         yield p
 
 
+    def _apply_record_predicates(self, i, r, summarize):
+        for record_predicate, code, message, modulus in self._record_predicates:
+            if i % modulus == 0: # support sampling
+                rdict = self._as_dict(r)
+                if not record_predicate(rdict):
+                    p = {'code': code}
+                    if not summarize:
+                        p['message'] = message
+                        p['row'] = i + 1
+                        p['record'] = r
+                    yield p
+                    
+                    
+    def _as_dict(self, r):
+        """Convert the record to a dictionary using field names as keys."""
+        d = dict()
+        for i, f in enumerate(self._field_names):
+            d[f] = r[i] if i < len(r) else None
+        return d
+    
+    
 def enumeration(*args):
     """
     Return a value check function which raises a value error if the value is not
@@ -199,6 +241,11 @@ def enumeration(*args):
     
           
 def match_pattern(regex):
+    """
+    TODO doc me
+    
+    """
+    
     prog = re.compile(regex)
     def checker(v):
         result = prog.match(v)
@@ -208,6 +255,11 @@ def match_pattern(regex):
 
 
 def search_pattern(regex):
+    """
+    TODO doc me
+    
+    """
+    
     prog = re.compile(regex)
     def checker(v):
         result = prog.search(v)
@@ -217,6 +269,11 @@ def search_pattern(regex):
 
 
 def number_range_inclusive(min, max, type=float):
+    """
+    TODO doc me
+    
+    """
+    
     def checker(v):
         if type(v) < min or type(v) > max:
             raise ValueError(v)
@@ -224,6 +281,11 @@ def number_range_inclusive(min, max, type=float):
 
 
 def number_range_exclusive(min, max, type=float):
+    """
+    TODO doc me
+    
+    """
+    
     def checker(v):
         if type(v) <= min or type(v) >= max:
             raise ValueError(v)
