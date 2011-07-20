@@ -12,7 +12,7 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
     ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION
-import pprint
+from pprint import pprint
 
 
 # logging setup
@@ -522,10 +522,10 @@ def test_assert_methods():
             super(MyValidator, self).__init__(field_names)
             self._threshold = threshold
             
-        def assert_foo_plus_bar_gt_threshold(self, i, r):
+        def assert_foo_plus_bar_gt_threshold(self, r):
             assert int(r['foo']) + int(r['bar']) > self._threshold # use default error code and message
     
-        def assert_foo_times_bar_gt_threshold(self, i, r):
+        def assert_foo_times_bar_gt_threshold(self, r):
             assert int(r['foo']) * int(r['bar']) > self._threshold, ('X6', 'custom message')
     
     validator = MyValidator(42)
@@ -577,7 +577,7 @@ def test_each_and_finally_assert_methods():
             self._bars = []
             self._count = 0
             
-        def each_store_bar(self, i, r):
+        def each_store_bar(self, r):
             n = float(r['bar'])
             self._bars.append(n)
             self._count += 1
@@ -613,13 +613,39 @@ def test_exception_handling():
     validator = CSVValidator(field_names)
     
     validator.add_value_check('foo', int)
+    
     def buggy_value_check(v):
+        """I am a buggy value check."""
         raise Exception('something went wrong')
     validator.add_value_check('bar', buggy_value_check)
     
+    def buggy_value_predicate(v):
+        """I am a buggy value predicate."""
+        raise Exception('something went wrong')
+    validator.add_value_predicate('bar', buggy_value_predicate)
+    
+    def buggy_record_predicate(r):
+        """I am a buggy record predicate."""
+        raise Exception('something went wrong')
+    validator.add_record_predicate(buggy_record_predicate)
+    
+    def buggy_assert(r):
+        """I am a buggy assert."""
+        raise Exception('something went wrong')
+    validator.assert_something_buggy = buggy_assert
+    
+    def buggy_each(r):
+        """I am a buggy each."""
+        raise Exception('something went wrong')
+    validator.each_something_buggy = buggy_each
+    
+    def buggy_finally_assert():
+        """I am a buggy finally assert."""
+        raise Exception('something went wrong')
+    validator.finally_assert_something_buggy = buggy_finally_assert
+    
     data = (
             ('foo', 'bar'),
-            ('12', '34'),
             ('ab', '56')
             )
     
@@ -627,15 +653,17 @@ def test_exception_handling():
     n = len(problems)
     assert n == 1, n
     p = problems[0]
-    assert p['row'] == 3
+    assert p['row'] == 2
 
     problems = validator.validate(data) # by default, exceptions are reported as problems
-    info(problems)
     n = len(problems)
-    assert n == 3, n
+    assert n == 7, n
     
     unexpected_problems = [p for p in problems if p['code'] == UNEXPECTED_EXCEPTION]
-    assert len(unexpected_problems) == 2
+    assert len(unexpected_problems) == 6
+    for p in unexpected_problems:
+        e = p['exception']
+        assert e.args[0] == 'something went wrong', e.args 
     
     
 # TODO what happens if value checks or value predicates or .. raise unexpected exceptions?
