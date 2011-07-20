@@ -109,7 +109,8 @@ def main():
         # so there is no len()
         problems = validator.validate(data_source, 
                                       summarize=args.summarize,
-                                      report_unexpected_exceptions=args.report_unexpected_exceptions)
+                                      report_unexpected_exceptions=args.report_unexpected_exceptions,
+                                      context={'file': args.file})
 
         # write problems to stdout as restructured text
         write_problems(problems, sys.stdout, 
