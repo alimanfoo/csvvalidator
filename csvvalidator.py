@@ -117,15 +117,21 @@ class CSVValidator(object):
                  context=None,
                  report_unexpected_exceptions=True):
         """Validate data from the given data source and return a list of problems."""
-        
-        return list(self.ivalidate(data_source, expect_header_row, ignore_lines, summarize, limit, context, report_unexpected_exceptions))
+
+        problems = list()
+        problem_generator = self.ivalidate(data_source, expect_header_row, 
+                                           ignore_lines, summarize, context, 
+                                           report_unexpected_exceptions)
+        for i, p in enumerate(problem_generator):
+            if not limit or i < limit:
+                problems.append(p)
+        return problems
     
     
     def ivalidate(self, data_source, 
                  expect_header_row=True,
                  ignore_lines=0,
                  summarize=False,
-                 limit=0,
                  context=None,
                  report_unexpected_exceptions=True):
         """Validate data from the given data source and return a problem generator.
@@ -139,25 +145,38 @@ class CSVValidator(object):
         for i, r in enumerate(data_source):
             if expect_header_row and i == ignore_lines:
                 # r is the header row
-                for p in self._apply_header_checks(i, r, summarize):
+                for p in self._apply_header_checks(i, r, summarize, context):
                     yield p
             elif i >= ignore_lines:
                 # r is a data row
-                for p in self._apply_each_methods(i, r, summarize, report_unexpected_exceptions):
+                for p in self._apply_each_methods(i, r, summarize, 
+                                                  report_unexpected_exceptions,
+                                                  context):
                     yield p # may yield a problem if an exception is raised
-                for p in self._apply_value_checks(i, r, summarize, report_unexpected_exceptions):
+                for p in self._apply_value_checks(i, r, summarize, 
+                                                  report_unexpected_exceptions,
+                                                  context):
                     yield p
-                for p in self._apply_record_length_checks(i, r, summarize):
+                for p in self._apply_record_length_checks(i, r, summarize, 
+                                                          context):
                     yield p
-                for p in self._apply_value_predicates(i, r, summarize, report_unexpected_exceptions):
+                for p in self._apply_value_predicates(i, r, summarize, 
+                                                      report_unexpected_exceptions,
+                                                      context):
                     yield p
-                for p in self._apply_record_predicates(i, r, summarize, report_unexpected_exceptions):
+                for p in self._apply_record_predicates(i, r, summarize, 
+                                                       report_unexpected_exceptions,
+                                                       context):
                     yield p
                 for p in self._apply_unique_checks(i, r, unique_sets, summarize):
                     yield p
-                for p in self._apply_assert_methods(i, r, summarize, report_unexpected_exceptions):
+                for p in self._apply_assert_methods(i, r, summarize, 
+                                                    report_unexpected_exceptions,
+                                                    context):
                     yield p
-        for p in self._apply_finally_assert_methods(summarize, report_unexpected_exceptions):
+        for p in self._apply_finally_assert_methods(summarize, 
+                                                    report_unexpected_exceptions,
+                                                    context):
             yield p
                     
                     
@@ -171,7 +190,8 @@ class CSVValidator(object):
                     
     def _apply_value_checks(self, i, r, 
                             summarize=False, 
-                            report_unexpected_exceptions=True):
+                            report_unexpected_exceptions=True,
+                            context=None):
         """Apply value check functions on the given record."""
         
         for field_name, check, code, message, modulus in self._value_checks:
@@ -190,6 +210,7 @@ class CSVValidator(object):
                             p['field'] = field_name
                             p['value'] = value
                             p['record'] = r
+                            if context is not None: p['context'] = context
                         yield p
                     except Exception as e:
                         if report_unexpected_exceptions:
@@ -204,10 +225,11 @@ class CSVValidator(object):
                                 p['exception'] = e
                                 p['function'] = '%s: %s' % (check.__name__, 
                                                             check.__doc__)
+                                if context is not None: p['context'] = context
                             yield p
                         
                     
-    def _apply_header_checks(self, i, r, summarize=False):
+    def _apply_header_checks(self, i, r, summarize=False, context=None):
         for code, message in self._header_checks:
             if tuple(r) != self._field_names:
                 p = {'code': code}
@@ -217,10 +239,11 @@ class CSVValidator(object):
                     p['record'] = tuple(r)
                     p['missing'] = set(self._field_names) - set(r)
                     p['unexpected'] = set(r) - set(self._field_names) 
+                    if context is not None: p['context'] = context
                 yield p
                 
                 
-    def _apply_record_length_checks(self, i, r, summarize=False):
+    def _apply_record_length_checks(self, i, r, summarize=False, context=None):
         for code, message, modulus in self._record_length_checks:
             if i % modulus == 0: # support sampling
                 if len(r) != len(self._field_names):
@@ -230,12 +253,14 @@ class CSVValidator(object):
                         p['row'] = i + 1
                         p['record'] = r
                         p['length'] = len(r)
+                        if context is not None: p['context'] = context
                     yield p
                 
                 
     def _apply_value_predicates(self, i, r, 
                                 summarize=False, 
-                                report_unexpected_exceptions=True):
+                                report_unexpected_exceptions=True,
+                                context=None):
         for field_name, predicate, code, message, modulus in self._value_predicates:
             if i % modulus == 0: # support sampling
                 fi = self._field_names.index(field_name)
@@ -252,6 +277,7 @@ class CSVValidator(object):
                                 p['field'] = field_name
                                 p['value'] = value
                                 p['record'] = r
+                                if context is not None: p['context'] = context
                             yield p
                     except Exception as e:
                         if report_unexpected_exceptions:
@@ -266,12 +292,14 @@ class CSVValidator(object):
                                 p['exception'] = e
                                 p['function'] = '%s: %s' % (predicate.__name__, 
                                                             predicate.__doc__)
+                                if context is not None: p['context'] = context
                             yield p
 
 
     def _apply_record_predicates(self, i, r, 
                                  summarize=False, 
-                                 report_unexpected_exceptions=True):
+                                 report_unexpected_exceptions=True,
+                                 context=None):
         for predicate, code, message, modulus in self._record_predicates:
             if i % modulus == 0: # support sampling
                 rdict = self._as_dict(r)
@@ -283,6 +311,7 @@ class CSVValidator(object):
                             p['message'] = message
                             p['row'] = i + 1
                             p['record'] = r
+                            if context is not None: p['context'] = context
                         yield p
                 except Exception as e:
                     if report_unexpected_exceptions:
@@ -294,11 +323,13 @@ class CSVValidator(object):
                             p['exception'] = e
                             p['function'] = '%s: %s' % (predicate.__name__, 
                                                         predicate.__doc__)
+                            if context is not None: p['context'] = context
                         yield p
                     
                 
     def _apply_unique_checks(self, i, r, unique_sets, 
-                             summarize=False):
+                             summarize=False,
+                             context=None):
         for key, code, message in self._unique_checks:
             value = None
             values = unique_sets[key]
@@ -319,13 +350,15 @@ class CSVValidator(object):
                     p['record'] = r
                     p['key'] = key
                     p['value'] = value
+                    if context is not None: p['context'] = context
                 yield p
             values.add(value)
 
 
     def _apply_each_methods(self, i, r, 
                             summarize=False, 
-                            report_unexpected_exceptions=True):
+                            report_unexpected_exceptions=True,
+                            context=None):
         for a in dir(self):
             if a.startswith('each'):
                 rdict = self._as_dict(r)
@@ -342,12 +375,14 @@ class CSVValidator(object):
                             p['exception'] = e
                             p['function'] = '%s: %s' % (f.__name__, 
                                                         f.__doc__)
+                            if context is not None: p['context'] = context
                         yield p
 
                     
     def _apply_assert_methods(self, i, r, 
                               summarize=False, 
-                              report_unexpected_exceptions=True):
+                              report_unexpected_exceptions=True,
+                              context=None):
         for a in dir(self):
             if a.startswith('assert'):
                 rdict = self._as_dict(r)
@@ -362,6 +397,7 @@ class CSVValidator(object):
                         p['message'] = message
                         p['row'] = i + 1
                         p['record'] = r
+                        if context is not None: p['context'] = context
                     yield p
                 except Exception as e:
                     if report_unexpected_exceptions:
@@ -373,12 +409,14 @@ class CSVValidator(object):
                             p['exception'] = e
                             p['function'] = '%s: %s' % (f.__name__, 
                                                         f.__doc__)
+                            if context is not None: p['context'] = context
                         yield p
     
     
     def _apply_finally_assert_methods(self, 
                                       summarize=False, 
-                                      report_unexpected_exceptions=True):
+                                      report_unexpected_exceptions=True,
+                                      context=None):
         for a in dir(self):
             if a.startswith('finally_assert'):
                 f = getattr(self, a)
@@ -390,6 +428,7 @@ class CSVValidator(object):
                     if not summarize:
                         message = e.args[1] if len(e.args) > 1 else MESSAGES[FINALLY_ASSERT_CHECK_FAILED]
                         p['message'] = message
+                        if context is not None: p['context'] = context
                     yield p
                 except Exception as e:
                     if report_unexpected_exceptions:
@@ -399,6 +438,7 @@ class CSVValidator(object):
                             p['exception'] = e
                             p['function'] = '%s: %s' % (f.__name__, 
                                                         f.__doc__)
+                            if context is not None: p['context'] = context
                         yield p
     
     
@@ -488,3 +528,15 @@ def number_range_exclusive(min, max, type=float):
     return checker
 
 
+def write_problems_rst(problems, file):
+    """
+    Write problems as restructured text to a file (or stdout/stderr).
+    
+    """
+    w = file.write # convenience variable
+    w("""
+=================
+Validation Report
+=================
+""")
+    # TODO finish this

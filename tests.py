@@ -11,7 +11,7 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
-    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION
+    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems_rst
 from pprint import pprint
 
 
@@ -664,10 +664,149 @@ def test_exception_handling():
     for p in unexpected_problems:
         e = p['exception']
         assert e.args[0] == 'something went wrong', e.args 
+
+
+def test_summarize():
+    """Test use of summarize option."""
+
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
     
+    def foo_gt_bar(r):
+        return int(r['foo']) > int(r['bar']) 
+    validator.add_record_predicate(foo_gt_bar) 
     
-# TODO what happens if value checks or value predicates or .. raise unexpected exceptions?
-# TODO test summarise
-# TODO test limit
-# TODO test context
-# TODO test writing problems
+    data = (
+            ('foo', 'bar'),
+            ('7', '3'), # valid
+            ('1', '3') # invalid 
+            )
+    
+    problems = validator.validate(data, summarize=True)
+    n = len(problems)
+    assert n == 1, n
+    
+    p = problems[0]
+    assert p['code'] == RECORD_PREDICATE_FALSE
+    for k in ('message', 'row', 'record'):
+        assert k not in p
+
+
+def test_limit():
+    """Test the use of the limit option."""    
+
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    
+    def foo_gt_bar(r):
+        return int(r['foo']) > int(r['bar']) 
+    validator.add_record_predicate(foo_gt_bar) 
+    
+    data = (
+            ('foo', 'bar'),
+            ('7', '3'), # valid
+            ('1', '3'), # invalid 
+            ('2', '3') # invalid 
+            )
+    
+    problems = validator.validate(data, limit=1)
+    n = len(problems)
+    assert n == 1, n
+        
+    problems = validator.validate(data)
+    n = len(problems)
+    assert n == 2, n
+
+
+def test_context():
+    """Test passing in of context information."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    
+    def foo_gt_bar(r):
+        return int(r['foo']) > int(r['bar']) 
+    validator.add_record_predicate(foo_gt_bar) 
+    
+    data = (
+            ('foo', 'bar'),
+            ('7', '3'), # valid
+            ('1', '3') # invalid 
+            )
+    
+    context = {'info': 'file X'}
+    problems = validator.validate(data, context=context)
+    n = len(problems)
+    assert n == 1, n
+    
+    p = problems[0]
+    assert p['context'] == context
+
+        
+def test_write_problems_rst():
+    """Test writing problems as restructured text."""
+    
+    class MockFile(object):
+        
+        def __init__(self):
+            self.content = ''
+            
+        def write(self, s):
+            self.content += s
+            
+    file = MockFile()
+    
+    problems = [
+                {
+                 'code': 'X1',
+                 'message': 'invalid foo',
+                 'row': 2,
+                 'field': 'foo',
+                 'context': {
+                             'info': 'interesting'
+                             }
+                 },
+                {
+                 'code': 'X2',
+                 'message': 'invalid bar',
+                 'row': 3,
+                 'field': 'bar',
+                 'context': {
+                             'info': 'very interesting'
+                             }
+                 }
+                ]
+    
+    expectation = """
+=================
+Validation Report
+=================
+
+Problems
+========
+
+X1 - invalid foo
+----------------
+:field: foo
+:row: 2
+:info: interesting
+
+X2 - invalid bar
+----------------
+:field: bar
+:row: 3
+:info: very interesting
+
+Summary
+=======
+
+Found 2 problems in total.
+
+:X1: 1
+:x2: 2
+"""
+
+    write_problems_rst(problems, file)
+    assert file.content == expectation, file.content
+
+        
