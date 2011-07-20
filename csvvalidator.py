@@ -5,6 +5,7 @@ TODO
 
 
 import re
+from datetime import datetime
 
 
 UNEXPECTED_EXCEPTION = 0
@@ -528,6 +529,17 @@ def number_range_exclusive(min, max, type=float):
     return checker
 
 
+def datetime_string(format):
+    """
+    TODO doc me
+    
+    """
+    
+    def checker(v):
+        datetime.strptime(v, format)
+    return checker
+
+
 def write_problems(problems, file, summarize=False, limit=0):
     """
     Write problems as restructured text to a file (or stdout/stderr).
@@ -576,7 +588,7 @@ Summary
 
 Found %s%s problem%s in total.
 
-""" % ('at least ' if limit else '', total, 's' if total > 1 else ''))
+""" % ('at least ' if limit else '', total, 's' if total != 1 else ''))
     for code in sorted(counts.viewkeys()):
         w(':%s: %s\n' % (code, counts[code]))
     return total

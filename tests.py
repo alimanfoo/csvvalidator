@@ -11,7 +11,7 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
-    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems
+    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems, datetime_string
 
 
 # logging setup
@@ -365,6 +365,31 @@ def test_value_check_numeric_ranges():
     assert problems[1]['row'] == 4 and problems[1]['field'] == 'bar'
     assert problems[2]['row'] == 5 and problems[2]['field'] == 'baz'
     assert problems[3]['row'] == 6 and problems[3]['field'] == 'quux'
+    
+    
+def test_value_checks_datetime():
+    """Test value checks with datetimes."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_value_check('bar', datetime_string('%Y-%m-%d'))
+    
+    data = (
+            ('foo', 'bar'),
+            ('A', '1999-09-09'), # valid
+            ('B', '1999-13-09'), # invalid month
+            ('C', '1999-09-32'), # invalid day
+            ('D', '1999-09-09ss') # invalid string
+            )
+    
+    problems = validator.validate(data)
+    assert len(problems) == 3, problems
+    for p in problems:
+        assert p['code'] == VALUE_CHECK_FAILED
+
+    assert problems[0]['row'] == 3 and problems[0]['field'] == 'bar'
+    assert problems[1]['row'] == 4 and problems[1]['field'] == 'bar'
+    assert problems[2]['row'] == 5 and problems[2]['field'] == 'bar'
     
     
 def test_value_predicates():
