@@ -528,7 +528,7 @@ def number_range_exclusive(min, max, type=float):
     return checker
 
 
-def write_problems_rst(problems, file, summarize=False, limit=0):
+def write_problems(problems, file, summarize=False, limit=0):
     """
     Write problems as restructured text to a file (or stdout/stderr).
     
@@ -539,16 +539,16 @@ def write_problems_rst(problems, file, summarize=False, limit=0):
 Validation Report
 =================
 """)
-    if not summarize:
-        w("""
-Problems
-========
-""")
     counts = dict() # store problem counts per problem code
     total = 0
     for i, p in enumerate(problems):
         if limit and i >= limit:
             break # bail out
+        if total == 0 and not summarize:
+            w("""
+Problems
+========
+""")
         total += 1
         code = p['code']
         if code in counts: 
@@ -579,4 +579,5 @@ Found %s%s problem%s in total.
 """ % ('at least ' if limit else '', total, 's' if total > 1 else ''))
     for code in sorted(counts.viewkeys()):
         w(':%s: %s\n' % (code, counts[code]))
+    return total
     

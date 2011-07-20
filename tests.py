@@ -11,7 +11,7 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
-    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems_rst
+    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems
 
 
 # logging setup
@@ -742,7 +742,7 @@ def test_context():
     assert p['context'] == context
 
         
-def test_write_problems_rst():
+def test_write_problems():
     """Test writing problems as restructured text."""
     
     class MockFile(object):
@@ -805,11 +805,11 @@ Found 2 problems in total.
 :X2: 1
 """
 
-    write_problems_rst(problems, file)
+    write_problems(problems, file)
     assert file.content == expectation, file.content
 
         
-def test_write_problems_rst_summarize():
+def test_write_problems_summarize():
     """Test writing a problem summary as restructured text."""
     
     class MockFile(object):
@@ -831,7 +831,7 @@ def test_write_problems_rst_summarize():
                  'context': {
                              'info': 'interesting'
                              }
-                 },
+                },
                 {
                  'code': 'X2',
                  'message': 'invalid bar',
@@ -840,7 +840,16 @@ def test_write_problems_rst_summarize():
                  'context': {
                              'info': 'very interesting'
                              }
-                 }
+                },
+                {
+                 'code': 'X2',
+                 'message': 'invalid bar',
+                 'row': 4,
+                 'field': 'bar',
+                 'context': {
+                             'info': 'very very interesting'
+                             }
+                }
                 ]
     
     expectation = """
@@ -851,17 +860,17 @@ Validation Report
 Summary
 =======
 
-Found 2 problems in total.
+Found 3 problems in total.
 
 :X1: 1
-:X2: 1
+:X2: 2
 """
 
-    write_problems_rst(problems, file, summarize=True)
+    write_problems(problems, file, summarize=True)
     assert file.content == expectation, file.content
 
         
-def test_write_problems_rst_with_limit():
+def test_write_problems_with_limit():
     """Test writing problems with a limit as restructured text."""
     
     class MockFile(object):
@@ -917,5 +926,5 @@ Found at least 1 problem in total.
 :X1: 1
 """
 
-    write_problems_rst(problems, file, limit=1)
+    write_problems(problems, file, limit=1)
     assert file.content == expectation, file.content        
