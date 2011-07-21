@@ -45,14 +45,15 @@ def create_validator():
                               'EX7', 'invalid date')
     
     # a more complicated record check
-    def validate_age_variables(r):
+    def check_age_variables(r):
         age_years = int(r['age_years'])
         age_months = int(r['age_months'])
         valid = (age_months >= age_years * 12 and 
                  age_months % age_years < 12)
-        return valid
-    validator.add_record_predicate(validate_age_variables,
-                                   'EX8', 'invalid age variables')
+        if not valid:
+            raise ValueError(age_years, age_months)
+    validator.add_record_check(check_age_variables,
+                               'EX8', 'invalid age variables')
     
     return validator
 

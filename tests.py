@@ -11,7 +11,8 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     HEADER_CHECK_FAILED, RECORD_LENGTH_CHECK_FAILED, enumeration, match_pattern,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
-    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems, datetime_string
+    ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems, datetime_string,\
+    RECORD_CHECK_FAILED
 
 
 # logging setup
@@ -431,6 +432,60 @@ def test_value_predicates():
     assert p1['record'] == ('4', '49')
     
     
+def test_record_checks():
+    """Test the use of record checks."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    
+    def foo_gt_bar(r):
+        foo = int(r['foo'])
+        bar = int(r['bar'])
+        if foo < bar:
+            raise ValueError(foo, bar)
+    validator.add_record_check(foo_gt_bar) # use default code and message
+    
+    def foo_gt_2bar(r):
+        foo = int(r['foo'])
+        bar = int(r['bar'])
+        if int(r['foo']) < 2 * int(r['bar']):
+            raise ValueError(foo, bar)
+    validator.add_record_check(foo_gt_2bar, 'X4', 'custom message')
+    
+    data = (
+            ('foo', 'bar'),
+            ('7', '3'), # valid
+            ('5', '3'), # invalid - not foo_gt_2bar
+            ('1', '3') # invalid - both predicates false
+            )
+    
+    problems = validator.validate(data)
+    n = len(problems)
+    assert n == 3, n
+    
+    row3_problems = [p for p in problems if p['row'] == 3]
+    assert len(row3_problems) == 1
+    p = row3_problems[0]
+    assert p['code'] == 'X4'
+    assert p['message'] == 'custom message'
+    assert p['record'] == ('5', '3')
+    
+    row4_problems = [p for p in problems if p['row'] == 4]
+    assert len(row4_problems) == 2
+    
+    row4_problems_default = [p for p in row4_problems if p['code'] == RECORD_CHECK_FAILED]
+    assert len(row4_problems_default) == 1
+    p = row4_problems_default[0]
+    assert p['message'] == MESSAGES[RECORD_CHECK_FAILED]
+    assert p['record'] == ('1', '3')
+    
+    row4_problems_custom = [p for p in row4_problems if p['code'] == 'X4']
+    assert len(row4_problems_custom) == 1
+    p = row4_problems_custom[0]
+    assert p['message'] == 'custom message'
+    assert p['record'] == ('1', '3')
+
+
 def test_record_predicates():
     """Test the use of record predicates."""
     
@@ -953,3 +1008,7 @@ Found at least 1 problem in total.
 
     write_problems(problems, file, limit=1)
     assert file.content == expectation, file.content        
+    
+    
+# TODO skips
+# TODO callable asserts

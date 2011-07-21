@@ -13,16 +13,18 @@ VALUE_CHECK_FAILED = 1
 HEADER_CHECK_FAILED = 2
 RECORD_LENGTH_CHECK_FAILED = 3
 VALUE_PREDICATE_FALSE = 4
-RECORD_PREDICATE_FALSE = 5
-UNIQUE_CHECK_FAILED = 6
-ASSERT_CHECK_FAILED = 7
-FINALLY_ASSERT_CHECK_FAILED = 7
+RECORD_CHECK_FAILED = 5
+RECORD_PREDICATE_FALSE = 6
+UNIQUE_CHECK_FAILED = 7
+ASSERT_CHECK_FAILED = 8
+FINALLY_ASSERT_CHECK_FAILED = 9
 
 MESSAGES = {
             UNEXPECTED_EXCEPTION: 'Unexpected exception [%s]: %s',
             VALUE_CHECK_FAILED: 'Value check failed.',
             HEADER_CHECK_FAILED: 'Header check failed.',
             RECORD_LENGTH_CHECK_FAILED: 'Record length check failed.',
+            RECORD_CHECK_FAILED: 'Record check failed.',
             VALUE_PREDICATE_FALSE: 'Value predicate returned false.',
             RECORD_PREDICATE_FALSE: 'Record predicate returned false.',
             UNIQUE_CHECK_FAILED: 'Unique check failed.',
@@ -41,6 +43,7 @@ class CSVValidator(object):
         self._header_checks = []
         self._record_length_checks = []
         self._value_predicates = []
+        self._record_checks = []
         self._record_predicates = []
         self._unique_checks = []
 
@@ -86,6 +89,16 @@ class CSVValidator(object):
         self._value_predicates.append(t)
     
     
+    def add_record_check(self, record_check,
+                        code=RECORD_CHECK_FAILED, 
+                        message=MESSAGES[RECORD_CHECK_FAILED],
+                        modulus=1):
+        """Add a record check function."""
+
+        t = record_check, code, message, modulus
+        self._record_checks.append(t)
+        
+        
     def add_record_predicate(self, record_predicate,
                         code=RECORD_PREDICATE_FALSE, 
                         message=MESSAGES[RECORD_PREDICATE_FALSE],
@@ -164,6 +177,10 @@ class CSVValidator(object):
                 for p in self._apply_value_predicates(i, r, summarize, 
                                                       report_unexpected_exceptions,
                                                       context):
+                    yield p
+                for p in self._apply_record_checks(i, r, summarize, 
+                                                       report_unexpected_exceptions,
+                                                       context):
                     yield p
                 for p in self._apply_record_predicates(i, r, summarize, 
                                                        report_unexpected_exceptions,
@@ -297,6 +314,38 @@ class CSVValidator(object):
                             yield p
 
 
+    def _apply_record_checks(self, i, r, 
+                                 summarize=False, 
+                                 report_unexpected_exceptions=True,
+                                 context=None):
+        for check, code, message, modulus in self._record_checks:
+            if i % modulus == 0: # support sampling
+                rdict = self._as_dict(r)
+                try:
+                    check(rdict)
+                except ValueError as e:
+                    p = {'code': code}
+                    if not summarize:
+                        p['message'] = message
+                        p['row'] = i + 1
+                        p['record'] = r
+                        p['value'] = e.args
+                        if context is not None: p['context'] = context
+                    yield p
+                except Exception as e:
+                    if report_unexpected_exceptions:
+                        p = {'code': UNEXPECTED_EXCEPTION}
+                        if not summarize:
+                            p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                            p['row'] = i + 1
+                            p['record'] = r
+                            p['exception'] = e
+                            p['function'] = '%s: %s' % (check.__name__, 
+                                                        check.__doc__)
+                            if context is not None: p['context'] = context
+                        yield p
+                    
+                
     def _apply_record_predicates(self, i, r, 
                                  summarize=False, 
                                  report_unexpected_exceptions=True,
