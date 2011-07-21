@@ -4,7 +4,7 @@
 An executable Python script illustrating the use of the CSVValidator module.
 
 This script illustrates some, but not all, of the features available. For a 
-complete account of all features available, see the tests module.
+complete account of all features available, see the tests.py module.
 """
 
 from csvvalidator import CSVValidator, enumeration, number_range_inclusive,\
@@ -16,7 +16,7 @@ import csv
 
 
 def create_validator():
-    """Create a CSV validator for patient demographic data."""
+    """Create an example CSV validator for patient demographic data."""
 
     field_names = (
                    'study_id', 
