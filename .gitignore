@@ -1,5 +1,6 @@
 *.pyc
 .coverage
 dist
+build
 MANIFEST
 
