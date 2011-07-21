@@ -46,6 +46,7 @@ class CSVValidator(object):
         self._record_checks = []
         self._record_predicates = []
         self._unique_checks = []
+        self._skips = []
 
         
     def add_value_check(self, field_name, value_check, 
@@ -54,7 +55,10 @@ class CSVValidator(object):
                         modulus=1):
         """Add a value check function for the specified field."""
 
+        # guard conditions
         assert field_name in self._field_names, 'unexpected field name: %s' % field_name
+        assert callable(value_check), 'value check must be callable function'
+        
         t = field_name, value_check, code, message, modulus
         self._value_checks.append(t)
         
@@ -85,6 +89,8 @@ class CSVValidator(object):
         """Add a value predicate function for the specified field."""
 
         assert field_name in self._field_names, 'unexpected field name: %s' % field_name
+        assert callable(value_predicate), 'value predicate must be callable function'
+
         t = field_name, value_predicate, code, message, modulus
         self._value_predicates.append(t)
     
@@ -95,6 +101,8 @@ class CSVValidator(object):
                         modulus=1):
         """Add a record check function."""
 
+        assert callable(record_check), 'record check must be callable function'
+
         t = record_check, code, message, modulus
         self._record_checks.append(t)
         
@@ -104,6 +112,8 @@ class CSVValidator(object):
                         message=MESSAGES[RECORD_PREDICATE_FALSE],
                         modulus=1):
         """Add a record predicate function."""
+
+        assert callable(record_predicate), 'record predicate must be callable function'
 
         t = record_predicate, code, message, modulus
         self._record_predicates.append(t)
@@ -121,9 +131,14 @@ class CSVValidator(object):
                 assert f in self._field_names, 'unexpected field name: %s' % key
         t = key, code, message
         self._unique_checks.append(t)
+        
+        
+    def add_skip(self, skip):
+        assert callable(skip), 'skip must be callable function'
+        self._skips.append(skip)
     
     
-    def validate(self, data_source, 
+    def validate(self, data, 
                  expect_header_row=True,
                  ignore_lines=0,
                  summarize=False,
@@ -133,7 +148,7 @@ class CSVValidator(object):
         """Validate data from the given data source and return a list of problems."""
 
         problems = list()
-        problem_generator = self.ivalidate(data_source, expect_header_row, 
+        problem_generator = self.ivalidate(data, expect_header_row, 
                                            ignore_lines, summarize, context, 
                                            report_unexpected_exceptions)
         for i, p in enumerate(problem_generator):
@@ -142,7 +157,7 @@ class CSVValidator(object):
         return problems
     
     
-    def ivalidate(self, data_source, 
+    def ivalidate(self, data, 
                  expect_header_row=True,
                  ignore_lines=0,
                  summarize=False,
@@ -156,42 +171,51 @@ class CSVValidator(object):
         """
         
         unique_sets = self._init_unique_sets() # used for unique checks
-        for i, r in enumerate(data_source):
+        for i, r in enumerate(data):
             if expect_header_row and i == ignore_lines:
                 # r is the header row
                 for p in self._apply_header_checks(i, r, summarize, context):
                     yield p
             elif i >= ignore_lines:
                 # r is a data row
-                for p in self._apply_each_methods(i, r, summarize, 
+                skip = False
+                for p in self._apply_skips(i, r, summarize, 
                                                   report_unexpected_exceptions,
                                                   context):
-                    yield p # may yield a problem if an exception is raised
-                for p in self._apply_value_checks(i, r, summarize, 
-                                                  report_unexpected_exceptions,
-                                                  context):
-                    yield p
-                for p in self._apply_record_length_checks(i, r, summarize, 
-                                                          context):
-                    yield p
-                for p in self._apply_value_predicates(i, r, summarize, 
+                    if p is True:
+                        skip = True
+                    else:
+                        yield p
+                if not skip:
+                    for p in self._apply_each_methods(i, r, summarize, 
                                                       report_unexpected_exceptions,
                                                       context):
-                    yield p
-                for p in self._apply_record_checks(i, r, summarize, 
-                                                       report_unexpected_exceptions,
-                                                       context):
-                    yield p
-                for p in self._apply_record_predicates(i, r, summarize, 
-                                                       report_unexpected_exceptions,
-                                                       context):
-                    yield p
-                for p in self._apply_unique_checks(i, r, unique_sets, summarize):
-                    yield p
-                for p in self._apply_assert_methods(i, r, summarize, 
-                                                    report_unexpected_exceptions,
-                                                    context):
-                    yield p
+                        yield p # may yield a problem if an exception is raised
+                    for p in self._apply_value_checks(i, r, summarize, 
+                                                      report_unexpected_exceptions,
+                                                      context):
+                        yield p
+                    for p in self._apply_record_length_checks(i, r, summarize, 
+                                                              context):
+                        yield p
+                    for p in self._apply_value_predicates(i, r, summarize, 
+                                                          report_unexpected_exceptions,
+                                                          context):
+                        yield p
+                    for p in self._apply_record_checks(i, r, summarize, 
+                                                           report_unexpected_exceptions,
+                                                           context):
+                        yield p
+                    for p in self._apply_record_predicates(i, r, summarize, 
+                                                           report_unexpected_exceptions,
+                                                           context):
+                        yield p
+                    for p in self._apply_unique_checks(i, r, unique_sets, summarize):
+                        yield p
+                    for p in self._apply_assert_methods(i, r, summarize, 
+                                                        report_unexpected_exceptions,
+                                                        context):
+                        yield p
         for p in self._apply_finally_assert_methods(summarize, 
                                                     report_unexpected_exceptions,
                                                     context):
@@ -490,6 +514,29 @@ class CSVValidator(object):
                                                         f.__doc__)
                             if context is not None: p['context'] = context
                         yield p
+                        
+                        
+    def _apply_skips(self, i, r,
+                     summarize=False, 
+                     report_unexpected_exceptions=True,
+                     context=None):
+        for skip in self._skips:
+            try:
+                result = skip(r)
+                if result is True:
+                    yield True
+            except Exception as e:
+                if report_unexpected_exceptions:
+                    p = {'code': UNEXPECTED_EXCEPTION}
+                    if not summarize:
+                        p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                        p['row'] = i + 1
+                        p['record'] = r
+                        p['exception'] = e
+                        p['function'] = '%s: %s' % (skip.__name__, 
+                                                    skip.__doc__)
+                        if context is not None: p['context'] = context
+                    yield p
     
     
     def _as_dict(self, r):

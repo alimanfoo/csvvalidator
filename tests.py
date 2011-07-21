@@ -703,6 +703,11 @@ def test_exception_handling():
         raise Exception('something went wrong')
     validator.add_value_predicate('bar', buggy_value_predicate)
     
+    def buggy_record_check(r):
+        """I am a buggy record check."""
+        raise Exception('something went wrong')
+    validator.add_record_check(buggy_record_check)
+    
     def buggy_record_predicate(r):
         """I am a buggy record predicate."""
         raise Exception('something went wrong')
@@ -723,6 +728,11 @@ def test_exception_handling():
         raise Exception('something went wrong')
     validator.finally_assert_something_buggy = buggy_finally_assert
     
+    def buggy_skip(record):
+        """I am a buggy skip."""
+        raise Exception('something went wrong')
+    validator.add_skip(buggy_skip)
+    
     data = (
             ('foo', 'bar'),
             ('ab', '56')
@@ -736,10 +746,10 @@ def test_exception_handling():
 
     problems = validator.validate(data) # by default, exceptions are reported as problems
     n = len(problems)
-    assert n == 7, n
+    assert n == 9, n
     
     unexpected_problems = [p for p in problems if p['code'] == UNEXPECTED_EXCEPTION]
-    assert len(unexpected_problems) == 6
+    assert len(unexpected_problems) == 8
     for p in unexpected_problems:
         e = p['exception']
         assert e.args[0] == 'something went wrong', e.args 
@@ -1010,5 +1020,40 @@ Found at least 1 problem in total.
     assert file.content == expectation, file.content        
     
     
-# TODO skips
-# TODO callable asserts
+def test_skips():
+    """Test skip functions."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    
+    validator.add_record_length_check()
+    validator.add_value_check('foo', int)
+    
+    def skip_pragma(record):
+        return record[0].startswith('##')
+    validator.add_skip(skip_pragma)
+    
+    data = (
+            ('foo', 'bar'),
+            ('1', 'X'),
+            ('## this row', 'should be', 'skipped'),
+            ('3', 'Y')
+            )
+    
+    problems = validator.validate(data)
+    assert len(problems) == 0, problems
+    
+    
+def test_guard_conditions():
+    """Test some guard conditions."""
+
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    try:
+        validator.add_value_check('foo', 'i am not callable')
+    except AssertionError:
+        pass # expected
+    else:
+        assert False, 'expected exception'
+    
+    

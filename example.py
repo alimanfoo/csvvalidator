@@ -98,7 +98,7 @@ def main():
     with open(args.file, 'r') as f:
 
         # set up a csv reader for the data
-        data_source = csv.reader(f, delimiter='\t')
+        data = csv.reader(f, delimiter='\t')
         
         # create a validator
         validator = create_validator()
@@ -108,7 +108,7 @@ def main():
         # if you expect a large number of problems, use ivalidate() instead
         # of validate(), but bear in mind that ivalidate() returns an iterator
         # so there is no len()
-        problems = validator.validate(data_source, 
+        problems = validator.validate(data, 
                                       summarize=args.summarize,
                                       report_unexpected_exceptions=args.report_unexpected_exceptions,
                                       context={'file': args.file})
