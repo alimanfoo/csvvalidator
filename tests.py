@@ -12,7 +12,7 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
     ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems, datetime_string,\
-    RECORD_CHECK_FAILED
+    RECORD_CHECK_FAILED, datetime_range_inclusive, datetime_range_exclusive
 
 
 # logging setup
@@ -391,6 +391,36 @@ def test_value_checks_datetime():
     assert problems[0]['row'] == 3 and problems[0]['field'] == 'bar'
     assert problems[1]['row'] == 4 and problems[1]['field'] == 'bar'
     assert problems[2]['row'] == 5 and problems[2]['field'] == 'bar'
+    
+    
+def test_value_checks_datetime_range():
+    """Test value checks with datetime ranges."""
+    
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_value_check('bar', datetime_range_inclusive('1999-09-09', 
+                                                              '2009-09-09', 
+                                                              '%Y-%m-%d'))
+    validator.add_value_check('bar', datetime_range_exclusive('1999-09-09', 
+                                                              '2009-09-09', 
+                                                              '%Y-%m-%d'))
+    
+    data = (
+            ('foo', 'bar'),
+            ('A', '1999-09-10'), # valid
+            ('B', '1999-09-09'), # invalid (exclusive)
+            ('C', '2009-09-09'), # invalid (exclusive)
+            ('D', '1999-09-08'), # invalid (both)
+            ('E', '2009-09-10') # invalid (both)
+            )
+    
+    problems = validator.validate(data)
+    
+    assert len(problems) == 6, len(problems)
+    assert len([p for p in problems if p['row'] == 3]) == 1
+    assert len([p for p in problems if p['row'] == 4]) == 1
+    assert len([p for p in problems if p['row'] == 5]) == 2
+    assert len([p for p in problems if p['row'] == 6]) == 2
     
     
 def test_value_predicates():

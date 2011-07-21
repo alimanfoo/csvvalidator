@@ -208,7 +208,7 @@ class CSVValidator(object):
 
         # guard conditions
         assert field_name in self._field_names, 'unexpected field name: %s' % field_name
-        assert callable(value_check), 'value check must be callable function'
+        assert callable(value_check), 'value check must be a callable function'
         
         t = field_name, value_check, code, message, modulus
         self._value_checks.append(t)
@@ -245,7 +245,7 @@ class CSVValidator(object):
         """
 
         assert field_name in self._field_names, 'unexpected field name: %s' % field_name
-        assert callable(value_predicate), 'value predicate must be callable function'
+        assert callable(value_predicate), 'value predicate must be a callable function'
 
         t = field_name, value_predicate, code, message, modulus
         self._value_predicates.append(t)
@@ -275,7 +275,7 @@ class CSVValidator(object):
 
         """
 
-        assert callable(record_check), 'record check must be callable function'
+        assert callable(record_check), 'record check must be a callable function'
 
         t = record_check, code, message, modulus
         self._record_checks.append(t)
@@ -309,7 +309,7 @@ class CSVValidator(object):
 
         """
 
-        assert callable(record_predicate), 'record predicate must be callable function'
+        assert callable(record_predicate), 'record predicate must be a callable function'
 
         t = record_predicate, code, message, modulus
         self._record_predicates.append(t)
@@ -352,7 +352,7 @@ class CSVValidator(object):
         
         """
 
-        assert callable(skip), 'skip must be callable function'
+        assert callable(skip), 'skip must be a callable function'
         self._skips.append(skip)
     
     
@@ -935,6 +935,40 @@ def datetime_string(format):
     
     def checker(v):
         datetime.strptime(v, format)
+    return checker
+
+
+def datetime_range_inclusive(min, max, format):
+    """
+    Return a value check function which raises a ValueError if the supplied 
+    value when converted to a datetime using the supplied `format` string is 
+    less than `min` or greater than `max`.
+    
+    """
+
+    dmin = datetime.strptime(min, format)
+    dmax = datetime.strptime(max, format)
+    def checker(v):
+        dv = datetime.strptime(v, format)
+        if dv < dmin or dv > dmax:
+            raise ValueError(v)
+    return checker
+
+
+def datetime_range_exclusive(min, max, format):
+    """
+    Return a value check function which raises a ValueError if the supplied 
+    value when converted to a datetime using the supplied `format` string is 
+    less than or equal to `min` or greater than or equal to `max`.
+    
+    """
+
+    dmin = datetime.strptime(min, format)
+    dmax = datetime.strptime(max, format)
+    def checker(v):
+        dv = datetime.strptime(v, format)
+        if dv <= dmin or dv >= dmax:
+            raise ValueError(v)
     return checker
 
 
