@@ -66,8 +66,8 @@ You can use the CSVValidator class to dynamically construct a validator, e.g.::
     problems = validator.validate(data)
     write_problems(problems, sys.stdout)
 
-You can also sub-class `CSVValidator` to define re-usable validator classes for 
-your specific data sources.
+For more complex use cases you can also sub-class `CSVValidator` to define 
+re-usable validator classes for specific data sources.
 
 The source code for this module lives at: 
 
