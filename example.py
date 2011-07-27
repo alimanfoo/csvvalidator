@@ -7,12 +7,12 @@ This script illustrates some, but not all, of the features available. For a
 complete account of all features available, see the tests.py module.
 """
 
-from csvvalidator import CSVValidator, enumeration, number_range_inclusive,\
-    write_problems, datetime_string
 import argparse
 import os
 import sys
 import csv
+from csvvalidator import CSVValidator, enumeration, number_range_inclusive,\
+    write_problems, datetime_string, RecordError
 
 
 def create_validator():
@@ -51,9 +51,8 @@ def create_validator():
         valid = (age_months >= age_years * 12 and 
                  age_months % age_years < 12)
         if not valid:
-            raise ValueError(age_years, age_months)
-    validator.add_record_check(check_age_variables,
-                               'EX8', 'invalid age variables')
+            raise RecordError('EX8', 'invalid age variables')
+    validator.add_record_check(check_age_variables)
     
     return validator
 

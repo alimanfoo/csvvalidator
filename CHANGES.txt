@@ -1,1 +1,27 @@
-v1.0, 2011-07-21 -- Initial release.
+v1.1, 2011-07-27
+================
+
+* The convention for record check functions has changed in this
+  release. Record check functions should now raise a RecordError if
+  there is a validation problem in the record. RecordError is a new
+  class in the csvvalidator module in this release. This change makes
+  it easier to distinguish between exceptions reporting validation
+  problems (i.e., RecordError), and unexpected exceptions raised
+  during record checks (i.e., all other exception classes, including
+  ValueError). See also https://github.com/alimanfoo/csvvalidator/issues/3
+
+* This release supports a new convention for defining record check
+  functions. In addition to the existing style, where record check
+  functions are defined separately and added via the
+  CSVValidator.add_record_check method, you can now also sub-class
+  CSVValidator, and any method whose name starts with 'check' will be
+  invoked as a record check function. This is similar to the style for
+  'assert' methods. See also https://github.com/alimanfoo/csvvalidator/issues/4
+
+v1.0, 2011-07-21
+================
+
+Initial release.
+
+
+

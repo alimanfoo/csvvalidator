@@ -12,7 +12,8 @@ from csvvalidator import CSVValidator, VALUE_CHECK_FAILED, MESSAGES,\
     search_pattern, number_range_inclusive, number_range_exclusive,\
     VALUE_PREDICATE_FALSE, RECORD_PREDICATE_FALSE, UNIQUE_CHECK_FAILED,\
     ASSERT_CHECK_FAILED, UNEXPECTED_EXCEPTION, write_problems, datetime_string,\
-    RECORD_CHECK_FAILED, datetime_range_inclusive, datetime_range_exclusive
+    RECORD_CHECK_FAILED, datetime_range_inclusive, datetime_range_exclusive,\
+    RecordError
 
 
 # logging setup
@@ -472,15 +473,15 @@ def test_record_checks():
         foo = int(r['foo'])
         bar = int(r['bar'])
         if foo < bar:
-            raise ValueError(foo, bar)
+            raise RecordError
     validator.add_record_check(foo_gt_bar) # use default code and message
     
     def foo_gt_2bar(r):
         foo = int(r['foo'])
         bar = int(r['bar'])
-        if int(r['foo']) < 2 * int(r['bar']):
-            raise ValueError(foo, bar)
-    validator.add_record_check(foo_gt_2bar, 'X4', 'custom message')
+        if foo < 2 * bar:
+            raise RecordError('X4', 'custom message')
+    validator.add_record_check(foo_gt_2bar)
     
     data = (
             ('foo', 'bar'),
@@ -673,6 +674,61 @@ def test_assert_methods():
     assert p['record'] == ('3', '4')
     
 
+def test_check_methods():
+    """Test use of 'check' methods."""
+    
+    # define a custom validator class 
+    class MyValidator(CSVValidator):
+        
+        def __init__(self, threshold):
+            field_names = ('foo', 'bar')
+            super(MyValidator, self).__init__(field_names)
+            self._threshold = threshold
+            
+        def check_foo_plus_bar_gt_threshold(self, r):
+            if int(r['foo']) + int(r['bar']) <= self._threshold:
+                raise RecordError # use default error code and message
+    
+        def check_foo_times_bar_gt_threshold(self, r):
+            if int(r['foo']) * int(r['bar']) <= self._threshold:
+                raise RecordError('X6', 'custom message')
+    
+    validator = MyValidator(42)
+    
+    data = (
+            ('foo', 'bar'),
+            ('33', '10'), # valid
+            ('7', '8'), # invalid (foo + bar less than threshold)
+            ('3', '4'), # invalid (both) 
+            )
+    
+    problems = validator.validate(data)
+    n = len(problems)
+    assert n == 3, n
+    
+    row3_problems = [p for p in problems if p['row'] == 3]
+    assert len(row3_problems) == 1
+    p = row3_problems[0]
+    assert p['code'] == RECORD_CHECK_FAILED
+    assert p['message'] == MESSAGES[RECORD_CHECK_FAILED]
+    assert p['record'] == ('7', '8')
+    
+    row4_problems = [p for p in problems if p['row'] == 4]
+    assert len(row4_problems) == 2
+
+    row4_problems_custom = [p for p in row4_problems if p['code'] == 'X6']
+    assert len(row4_problems_custom) == 1
+    p = row4_problems_custom[0]
+    assert p['message'] == 'custom message'
+    assert p['record'] == ('3', '4')
+    
+    row4_problems_default = [p for p in row4_problems if p['code'] == RECORD_CHECK_FAILED]
+    assert len(row4_problems_default) == 1
+    p = row4_problems_default[0]
+    assert p['message'] == MESSAGES[RECORD_CHECK_FAILED]
+    assert p['record'] == ('3', '4')
+    
+
 def test_each_and_finally_assert_methods():
     """Test 'each' and 'finally_assert' methods."""
     
@@ -748,6 +804,11 @@ def test_exception_handling():
         raise Exception('something went wrong')
     validator.assert_something_buggy = buggy_assert
     
+    def buggy_check(r):
+        """I am a buggy check."""
+        raise Exception('something went wrong')
+    validator.check_something_buggy = buggy_check
+    
     def buggy_each(r):
         """I am a buggy each."""
         raise Exception('something went wrong')
@@ -776,10 +837,10 @@ def test_exception_handling():
 
     problems = validator.validate(data) # by default, exceptions are reported as problems
     n = len(problems)
-    assert n == 9, n
+    assert n == 10, n
     
     unexpected_problems = [p for p in problems if p['code'] == UNEXPECTED_EXCEPTION]
-    assert len(unexpected_problems) == 8
+    assert len(unexpected_problems) == 9
     for p in unexpected_problems:
         e = p['exception']
         assert e.args[0] == 'something went wrong', e.args 

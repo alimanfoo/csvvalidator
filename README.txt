@@ -59,9 +59,8 @@ You can use the CSVValidator class to dynamically construct a validator, e.g.::
         valid = (age_months >= age_years * 12 and 
                  age_months % age_years < 12)
         if not valid:
-            raise ValueError(age_years, age_months)
-    validator.add_record_check(check_age_variables,
-                               'EX8', 'invalid age variables')
+            raise RecordError('EX8', 'invalid age variables')
+    validator.add_record_check(check_age_variables)
 
     # validate the data and write problems to stdout    
     data = csv.reader('/path/to/data.csv', delimiter='\t')

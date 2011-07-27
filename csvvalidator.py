@@ -57,9 +57,8 @@ You can use the CSVValidator class to dynamically construct a validator, e.g.::
         valid = (age_months >= age_years * 12 and 
                  age_months % age_years < 12)
         if not valid:
-            raise ValueError(age_years, age_months)
-    validator.add_record_check(check_age_variables,
-                               'EX8', 'invalid age variables')
+            raise RecordError('EX8', 'invalid age variables')
+    validator.add_record_check(check_age_variables)
 
     # validate the data and write problems to stdout    
     data = csv.reader('/path/to/data.csv', delimiter='\t')
@@ -106,6 +105,24 @@ MESSAGES = {
             ASSERT_CHECK_FAILED: 'Assertion check failed.',
             FINALLY_ASSERT_CHECK_FAILED: 'Final assertion check failed.'
             }
+
+
+class RecordError(Exception):
+    """Exception representing a validation problem in a record."""
+    
+    
+    def __init__(self, code=None, message=None, details=None):
+        self.code = code
+        self.message = message
+        self.details = details
+        
+        
+    def __str__(self):
+        return repr((self.code, self.message, self.details))
+
+
+    def __repr__(self):
+        return repr((self.code, self.message, self.details))
 
 
 class CSVValidator(object):
@@ -251,10 +268,7 @@ class CSVValidator(object):
         self._value_predicates.append(t)
     
     
-    def add_record_check(self, record_check,
-                        code=RECORD_CHECK_FAILED, 
-                        message=MESSAGES[RECORD_CHECK_FAILED],
-                        modulus=1):
+    def add_record_check(self, record_check, modulus=1):
         """
         Add a record check function.
         
@@ -262,13 +276,8 @@ class CSVValidator(object):
         ---------
 
         `record_check` - a function that accepts a single argument (a record as
-        a dictionary of values indexed by field name) and raises a `ValueError` 
-        if the value is not valid
-
-        `code` - problem code to report if a record is not valid, defaults to 
-        `RECORD_CHECK_FAILED`
-
-        `message` - problem message to report if a record is not valid
+        a dictionary of values indexed by field name) and raises a 
+        `RecordError` if the record is not valid
 
         `modulus` - apply the check to every nth record, defaults to 1 (check 
         every record)
@@ -277,7 +286,7 @@ class CSVValidator(object):
 
         assert callable(record_check), 'record check must be a callable function'
 
-        t = record_check, code, message, modulus
+        t = record_check, modulus
         self._record_checks.append(t)
         
         
@@ -482,6 +491,10 @@ class CSVValidator(object):
                         yield p
                     for p in self._apply_unique_checks(i, r, unique_sets, summarize):
                         yield p
+                    for p in self._apply_check_methods(i, r, summarize, 
+                                                       report_unexpected_exceptions,
+                                                       context):
+                        yield p
                     for p in self._apply_assert_methods(i, r, summarize, 
                                                         report_unexpected_exceptions,
                                                         context):
@@ -622,19 +635,21 @@ class CSVValidator(object):
                                  context=None):
         """Apply record checks on `r`."""
         
-        for check, code, message, modulus in self._record_checks:
+        for check, modulus in self._record_checks:
             if i % modulus == 0: # support sampling
                 rdict = self._as_dict(r)
                 try:
                     check(rdict)
-                except ValueError as e:
+                except RecordError as e:
+                    code = e.code if e.code is not None else RECORD_CHECK_FAILED
                     p = {'code': code}
                     if not summarize:
+                        message = e.message if e.message is not None else MESSAGES[RECORD_CHECK_FAILED]
                         p['message'] = message
                         p['row'] = i + 1
                         p['record'] = r
-                        p['value'] = e.args
                         if context is not None: p['context'] = context
+                        if e.details is not None: p['details'] = e.details
                     yield p
                 except Exception as e:
                     if report_unexpected_exceptions:
@@ -760,6 +775,43 @@ class CSVValidator(object):
                         p['row'] = i + 1
                         p['record'] = r
                         if context is not None: p['context'] = context
+                    yield p
+                except Exception as e:
+                    if report_unexpected_exceptions:
+                        p = {'code': UNEXPECTED_EXCEPTION}
+                        if not summarize:
+                            p['message'] = MESSAGES[UNEXPECTED_EXCEPTION] % (e.__class__.__name__, e)
+                            p['row'] = i + 1
+                            p['record'] = r
+                            p['exception'] = e
+                            p['function'] = '%s: %s' % (f.__name__, 
+                                                        f.__doc__)
+                            if context is not None: p['context'] = context
+                        yield p
+    
+    
+    def _apply_check_methods(self, i, r, 
+                              summarize=False, 
+                              report_unexpected_exceptions=True,
+                              context=None):
+        """Apply 'check' methods on `r`."""
+        
+        for a in dir(self):
+            if a.startswith('check'):
+                rdict = self._as_dict(r)
+                f = getattr(self, a)
+                try:
+                    f(rdict)
+                except RecordError as e:
+                    code = e.code if e.code is not None else RECORD_CHECK_FAILED
+                    p = {'code': code}
+                    if not summarize:
+                        message = e.message if e.message is not None else MESSAGES[RECORD_CHECK_FAILED]
+                        p['message'] = message
+                        p['row'] = i + 1
+                        p['record'] = r
+                        if context is not None: p['context'] = context
+                        if e.details is not None: p['details'] = e.details
                     yield p
                 except Exception as e:
                     if report_unexpected_exceptions:
