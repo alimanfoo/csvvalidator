@@ -5,16 +5,32 @@ csvvalidator
 This module provides some simple utilities for validating data contained in CSV 
 files, or other similar data sources.
 
-Note that the `csvvalidator` module is intended to be used in combination with 
-the standard Python `csv` module. The `csvvalidator` module **will not** 
-validate the *syntax* of a CSV file. Rather, the `csvvalidator` module can be 
-used to validate any source of row-oriented data, such as is provided by a 
-`csv.reader` object.
+The source code for this module lives at: 
 
-I.e., if you want to validate data from a CSV file, you have to first construct 
-a CSV reader using the standard Python `csv` module, specifying the appropriate 
-dialect, and then pass the CSV reader as the source of data to either the 
-`CSVValidator.validate` or the `CSVValidator.ivalidate` method.
+    https://github.com/alimanfoo/csvvalidator
+
+Please report any bugs or feature requests via the issue tracker there.
+
+Installation
+============
+
+This module is registered with the Python package index, so you can do::
+
+    $ easy_install csvvalidator
+
+... or download from http://pypi.python.org/pypi/csvvalidator and
+install in the usual way::
+
+    $ python setup.py install
+
+If you want the bleeding edge, clone the source code repository::
+
+    $ git clone git://github.com/alimanfoo/csvvalidator.git
+    $ cd csvvalidator
+    $ python setup.py install
+
+Usage
+=====
 
 The `CSVValidator` class is the foundation for all validator objects that are 
 capable of validating CSV data. 
@@ -70,10 +86,20 @@ You can use the CSVValidator class to dynamically construct a validator, e.g.::
 For more complex use cases you can also sub-class `CSVValidator` to define 
 re-usable validator classes for specific data sources.
 
-The source code for this module lives at: 
-
-    https://github.com/alimanfoo/csvvalidator
-
 For a complete account of all of the functionality available from this module, 
 see the example.py and tests.py modules in the source code repository.
+
+Notes
+=====
+
+Note that the `csvvalidator` module is intended to be used in combination with 
+the standard Python `csv` module. The `csvvalidator` module **will not** 
+validate the *syntax* of a CSV file. Rather, the `csvvalidator` module can be 
+used to validate any source of row-oriented data, such as is provided by a 
+`csv.reader` object.
+
+I.e., if you want to validate data from a CSV file, you have to first construct 
+a CSV reader using the standard Python `csv` module, specifying the appropriate 
+dialect, and then pass the CSV reader as the source of data to either the 
+`CSVValidator.validate` or the `CSVValidator.ivalidate` method.
 
