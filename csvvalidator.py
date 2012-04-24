@@ -1059,7 +1059,7 @@ Problems
                 underline += '-'
             underline += '\n'
             w(underline)
-            for k in sorted(p.viewkeys() - set('code', 'message', 'context')):
+            for k in sorted(p.viewkeys() - set(['code', 'message', 'context'])):
                 w(':%s: %s\n' % (k, p[k]))
             if 'context' in p:
                 c = p['context']

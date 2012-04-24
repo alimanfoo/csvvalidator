@@ -145,15 +145,15 @@ def test_header_check():
     assert p0['code'] == HEADER_CHECK_FAILED
     assert p0['message'] == MESSAGES[HEADER_CHECK_FAILED]
     assert p0['record'] == ('foo', 'baz')
-    assert p0['missing'] == set('bar')
-    assert p0['unexpected'] == set('baz')
+    assert p0['missing'] == set(['bar'])
+    assert p0['unexpected'] == set(['baz'])
     assert p0['row'] == 1
 
     p1 = problems[1]
     assert p1['code'] == 'X1'
     assert p1['message'] == 'custom message'
-    assert p1['missing'] == set('bar')
-    assert p1['unexpected'] == set('baz')
+    assert p1['missing'] == set(['bar'])
+    assert p1['unexpected'] == set(['baz'])
     assert p1['record'] == ('foo', 'baz')
     assert p1['row'] == 1
 
