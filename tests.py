@@ -591,6 +591,31 @@ def test_unique_checks():
     assert p['value'] == '1'
     assert p['record'] == ('1', 'C')
 
+def test_unique_checks_with_variable_record_lengths():
+    """Test the uniqueness checks still work when record lengths vary."""
+
+    field_names = ('foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_unique_check('bar')
+
+    data = (
+            ('foo', 'bar'),
+            ('1', 'A'),
+            ('2'),
+            ('3', 'A')
+            )
+
+    problems = validator.validate(data)
+    n = len(problems)
+    assert n == 1, n
+
+    p = problems[0]
+    assert p['code'] == UNIQUE_CHECK_FAILED
+    assert p['message'] == MESSAGES[UNIQUE_CHECK_FAILED]
+    assert p['row'] == 4
+    assert p['key'] == 'bar'
+    assert p['value'] == 'A'
+    assert p['record'] == ('3', 'A')
 
 def test_compound_unique_checks():
     """Test the uniqueness checks on compound keys."""
@@ -619,6 +644,36 @@ def test_compound_unique_checks():
     assert p['key'] == ('foo', 'bar')
     assert p['value'] == ('1', 'A')
     assert p['record'] == ('1', 'A')
+
+
+def test_compound_unique_checks_with_variable_record_lengths():
+    """Test the uniqueness checks on compound keys when record lengths vary."""
+
+    field_names = ('something', 'foo', 'bar')
+    validator = CSVValidator(field_names)
+    validator.add_unique_check(('foo', 'bar'), 'X5', 'custom message')
+
+    data = (
+            ('something', 'foo', 'bar'),
+            ('Z', '1', 'A'),
+            ('Z', '2', 'B'),
+            ('Z'),
+            ('Z', '2', 'A'),
+            ('Z', '1', 'A')
+            )
+
+    problems = validator.validate(data)
+    print problems
+    n = len(problems)
+    assert n == 1, n
+
+    p = problems[0]
+    assert p['code'] == 'X5'
+    assert p['message'] == 'custom message'
+    assert p['row'] == 6
+    assert p['key'] == ('foo', 'bar')
+    assert p['value'] == ('1', 'A')
+    assert p['record'] == ('Z', '1', 'A')
 
 
 def test_assert_methods():

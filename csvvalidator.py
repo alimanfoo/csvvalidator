@@ -708,11 +708,15 @@ class CSVValidator(object):
             values = unique_sets[key]
             if isinstance(key, basestring): # assume key is a field name
                 fi = self._field_names.index(key)
+                if fi >= len(r):
+                    continue
                 value = r[fi]
             else: # assume key is a list or tuple, i.e., compound key
                 value = []
                 for f in key:
                     fi = self._field_names.index(f)
+                    if fi >= len(r):
+                        break
                     value.append(r[fi])
                 value = tuple(value) # enable hashing
             if value in values:
