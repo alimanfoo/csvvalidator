@@ -767,10 +767,19 @@ class CSVValidator(object):
                 try:
                     f(rdict)
                 except AssertionError as e:
-                    code = e.args[0] if len(e.args) > 0 else ASSERT_CHECK_FAILED
+                    code = ASSERT_CHECK_FAILED
+                    message = MESSAGES[ASSERT_CHECK_FAILED]
+                    if len(e.args) > 0:
+                        custom = e.args[0]
+                        if isinstance(custom, (list, tuple)):
+                            if len(custom) > 0:
+                                code = custom[0]
+                            if len(custom) > 1:
+                                message = custom[1]
+                        else:
+                            code = custom
                     p = {'code': code}
                     if not summarize:
-                        message = e.args[1] if len(e.args) > 1 else MESSAGES[ASSERT_CHECK_FAILED]
                         p['message'] = message
                         p['row'] = i + 1
                         p['record'] = r
@@ -839,10 +848,19 @@ class CSVValidator(object):
                 try:
                     f()
                 except AssertionError as e:
-                    code = e.args[0] if len(e.args) > 0 else FINALLY_ASSERT_CHECK_FAILED
+                    code = ASSERT_CHECK_FAILED
+                    message = MESSAGES[ASSERT_CHECK_FAILED]
+                    if len(e.args) > 0:
+                        custom = e.args[0]
+                        if isinstance(custom, (list, tuple)):
+                            if len(custom) > 0:
+                                code = custom[0]
+                            if len(custom) > 1:
+                                message = custom[1]
+                        else:
+                            code = custom
                     p = {'code': code}
                     if not summarize:
-                        message = e.args[1] if len(e.args) > 1 else MESSAGES[FINALLY_ASSERT_CHECK_FAILED]
                         p['message'] = message
                         if context is not None: p['context'] = context
                     yield p

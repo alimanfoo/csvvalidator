@@ -662,7 +662,7 @@ def test_assert_methods():
     assert len(row4_problems) == 2
 
     row4_problems_custom = [p for p in row4_problems if p['code'] == 'X6']
-    assert len(row4_problems_custom) == 1
+    assert len(row4_problems_custom) == 1, row4_problems
     p = row4_problems_custom[0]
     assert p['message'] == 'custom message'
     assert p['record'] == ('3', '4')
