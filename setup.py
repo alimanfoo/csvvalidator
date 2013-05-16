@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='csvvalidator',
-      version='1.2-SNAPSHOT',
+      version='1.2',
       author='Alistair Miles',
       author_email='alimanfoo@googlemail.com',
       url='https://github.com/alimanfoo/csvvalidator',
