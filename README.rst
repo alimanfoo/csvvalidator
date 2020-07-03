@@ -2,6 +2,10 @@
 csvvalidator
 ============
 
+**This package is no longer maintained. Functionality for validating tables has been migrated to [petl](https://petl.readthedocs.io/en/stable/transform.html#petl.transform.validation.validate).**
+
+---
+
 This module provides some simple utilities for validating data contained in CSV 
 files, or other similar data sources.
 
