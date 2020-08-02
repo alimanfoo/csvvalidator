@@ -1081,11 +1081,11 @@ Problems
                 underline += '-'
             underline += '\n'
             w(underline)
-            for k in sorted(p.viewkeys() - set(['code', 'message', 'context'])):
+            for k in sorted(p.keys() - set(['code', 'message', 'context'])):
                 w(':%s: %s\n' % (k, p[k]))
             if 'context' in p:
                 c = p['context']
-                for k in sorted(c.viewkeys()):
+                for k in sorted(c.keys()):
                     w(':%s: %s\n' % (k, c[k]))
 
     w("""
@@ -1095,7 +1095,7 @@ Summary
 Found %s%s problem%s in total.
 
 """ % ('at least ' if limit else '', total, 's' if total != 1 else ''))
-    for code in sorted(counts.viewkeys()):
+    for code in sorted(counts.keys()):
         w(':%s: %s\n' % (code, counts[code]))
     return total
 
