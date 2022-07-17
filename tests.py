@@ -663,7 +663,7 @@ def test_compound_unique_checks_with_variable_record_lengths():
             )
 
     problems = validator.validate(data)
-    print problems
+    print (problems)
     n = len(problems)
     assert n == 1, n
 

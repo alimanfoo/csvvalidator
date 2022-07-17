@@ -91,7 +91,7 @@ def main():
     
     # sanity check arguments
     if not os.path.isfile(args.file):
-        print '%s is not a file' % args.file
+        print ('%s is not a file') % args.file
         sys.exit(1)
 
     with open(args.file, 'r') as f:
